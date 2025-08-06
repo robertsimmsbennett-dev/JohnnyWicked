@@ -530,6 +530,42 @@
             text-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
             text-align: center;
         }
+
+        /* Power-up notification styles */
+        #power-up-notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            border: 3px solid #00ffcc; /* Cyan border */
+            padding: 30px 50px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 1.8em; /* Larger font */
+            color: #00ffcc; /* Cyan text */
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.7);
+            z-index: 100; /* Very high z-index to be on top */
+            opacity: 0; /* Start hidden and fade in/out */
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none; /* Allow clicks to pass through */
+        }
+
+        #power-up-notification.show {
+            opacity: 1;
+        }
+
+        #power-up-notification h2 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #00ffff; /* Brighter cyan */
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        #power-up-notification p {
+            font-size: 0.8em;
+            color: #ccffff; /* Lighter cyan */
+        }
     </style>
 </head>
 <body>
@@ -625,6 +661,12 @@
                 <img src="https://placehold.co/100x100/8B4513/FFD700?text=Chest" id="chest-img" class="chest-image" onerror="this.src='https://placehold.co/100x100/8B4513/FFD700?text=Chest'">
                 <div id="drop-info" class="drop-text">You got: ???</div>
             </div>
+        </div>
+
+        <!-- Power-up notification -->
+        <div id="power-up-notification" style="display: none;">
+            <h2 id="notification-title"></h2>
+            <p id="notification-description"></p>
         </div>
     </div>
 
@@ -755,7 +797,7 @@
         const closePowerUpsButton = document.getElementById('close-power-ups-button'); // New: Close Power Ups button
 
         const scoreDisplay = document.getElementById('score-display');
-        const timeDisplay = document = document.getElementById('time-display');
+        const timeDisplay = document.getElementById('time-display');
         const levelDisplay = document.getElementById('level-display');
         const xpBar = document.getElementById('xp-bar');
         const ultimateBar = document.getElementById('ultimate-bar');
@@ -764,6 +806,11 @@
         const dropAnimationDiv = document.getElementById('drop-animation');
         const chestImg = document.getElementById('chest-img');
         const dropInfo = document.getElementById('drop-info');
+
+        // Power-up notification elements
+        const powerUpNotification = document.getElementById('power-up-notification');
+        const notificationTitle = document.getElementById('notification-title');
+        const notificationDescription = document.getElementById('notification-description');
 
         // Game state variables
         let gameRunning = false;
@@ -1051,23 +1098,23 @@
                     player.stats.friendlyDrones = 1;
                     player.stats.droneAttackSpeed = 1; // Base attack speed
                     player.stats.droneDamage = 10; // Base damage
-                } else if (player.upgrades.friendlyDrone === 3) {
+                } else if (player.upgrades.friendlyDrone === 3) { // Summon second drone at level 3
                     player.stats.friendlyDrones = 2;
-                } else if (player.upgrades.friendlyDrone === 4) {
-                    player.stats.droneAttackSpeed += 0.5; // Increase attack speed
-                } else if (player.upgrades.friendlyDrone === 8) {
+                } else if (player.upgrades.friendlyDrone === 6) { // Summon third drone at level 6
                     player.stats.friendlyDrones = 3;
+                } else { // For other levels, improve existing drones
+                    player.stats.droneAttackSpeed += 0.2; // Smaller increments for attack speed
+                    player.stats.droneDamage += 5; // Smaller increments for damage
                 }
                 // Update existing drones or create new ones
                 updateDroneCount();
               },
               next: () => {
                   let nextLevel = player.upgrades.friendlyDrone + 1;
-                  if (nextLevel === 1) return `Summon 1 drone.`;
-                  if (nextLevel === 3) return `Summon a second drone.`;
-                  if (nextLevel === 4) return `Drones fire more frequently.`;
-                  if (nextLevel === 8) return `Summon a third drone.`;
-                  return `Improve drone stats. (Lvl ${nextLevel}/${MAX_UPGRADE_LEVEL})`;
+                  if (nextLevel === 1) return `Summon 1 orbiting drone.`;
+                  if (nextLevel === 3) return `Summon a second orbiting drone.`;
+                  if (nextLevel === 6) return `Summon a third orbiting drone.`;
+                  return `Improve drone damage and attack speed. (Lvl ${nextLevel}/${MAX_UPGRADE_LEVEL})`;
               }
             },
             // --- NEW GUN VARIETIES ---
@@ -1299,14 +1346,7 @@
 
             switch(type) {
                 case 'playerShot':
-                    // Calculate the earliest time this sound can be played to avoid the error
-                    // It should be at least Tone.now(), and also at least the previously scheduled nextPlayerShotTime
-                    const playerShotStartTime = Math.max(currentTime, nextPlayerShotTime);
-                    if (playerSynth) {
-                        playerSynth.triggerAttackRelease("C4", "8n", playerShotStartTime);
-                    }
-                    // Schedule the *next* sound after a debounce period from its actual start time
-                    nextPlayerShotTime = playerShotStartTime + 0.15; 
+                    // Bullet sound removed
                     break;
                 case 'enemyHit':
                     const enemyHitStartTime = Math.max(currentTime, nextEnemyHitTime);
@@ -1920,7 +1960,7 @@
             }
         
             player.health += player.stats.healthRegen * effectiveDt;
-            player.health = Math.min(player.health + player.stats.healthRegen * effectiveDt, player.maxHealth); // Fixed health regen
+            player.health = Math.min(player.health, player.maxHealth);
         
             // Uzi Spiral Attack (replaces Circular Wave) - Fibonacci Spiral with spray
             if (keys.e && player.stats.uziDamage > 0 && player.uziTimer <= 0) {
@@ -1949,7 +1989,7 @@
                     });
                 }
                 player.uziTimer = player.uziCooldown;
-                playSound('playerShot'); // Use playerShot sound for Uzi
+                // playSound('playerShot'); // Removed bullet sound
             }
 
             // Flamethrower
@@ -2045,7 +2085,7 @@
                                 }
                             }
                         });
-                        playSound('playerShot'); // Use player shot sound
+                        // playSound('playerShot'); // Removed bullet sound
                     }
                     player.laserTimer = 0;
                 }
@@ -2072,7 +2112,7 @@
                             grenadeRadius: player.stats.grenadeRadius,
                             lifetime: 2 // Moderate lifetime
                         });
-                        playSound('playerShot'); // Use player shot sound
+                        // playSound('playerShot'); // Removed bullet sound
                     }
                     player.grenadeTimer = 0;
                 }
@@ -2099,7 +2139,7 @@
                             turnRate: player.stats.homingTurnRate,
                             lifetime: 3 // Long lifetime
                         });
-                        playSound('playerShot'); // Use player shot sound
+                        // playSound('playerShot'); // Removed bullet sound
                     }
                     player.homingTimer = 0;
                 }
@@ -2193,7 +2233,7 @@
                             });
                         }
                     }
-                    playSound('playerShot'); 
+                    // playSound('playerShot'); // Removed bullet sound
                 }
                 shootTimer = 0;
             }
@@ -2227,7 +2267,7 @@
                     });
                 }
                 player.burstTimer = 0;
-                playSound('playerShot'); 
+                // playSound('playerShot'); // Removed bullet sound
             }
         }
 
@@ -2718,7 +2758,7 @@
                             lifetime: 1
                         });
                         drone.shootTimer = 0;
-                        playSound('playerShot'); // Use playerShot sound for drone bullets
+                        // playSound('playerShot'); // Removed bullet sound for drones
                     }
                 }
             });
@@ -3438,10 +3478,21 @@
         function selectPower(power) {
             power.effect();
             player.upgrades[power.id]++;
-            messageBox.style.display = 'none';
-            gameRunning = true;
-            lastTime = performance.now(); 
-            requestAnimationFrame(gameLoop);
+            messageBox.style.display = 'none'; // Hide the power selection box
+
+            // Show the power-up notification
+            notificationTitle.textContent = power.name + "!";
+            notificationDescription.textContent = power.next(); // Use the 'next' description for the notification
+
+            powerUpNotification.classList.add('show');
+
+            setTimeout(() => {
+                powerUpNotification.classList.remove('show');
+                // After the notification fades out, resume the game loop
+                gameRunning = true;
+                lastTime = performance.now();
+                requestAnimationFrame(gameLoop);
+            }, 2000); // Display for 2 seconds (including fade out)
         }
 
         function resetGame() {
@@ -3556,7 +3607,7 @@
             POWER_OPTIONS.forEach(power => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'power-up-item';
-                item.innerHTML = `
+                itemDiv.innerHTML = `
                     <h4>${power.name}</h4>
                     <p>${power.description}</p>
                     <p>Current Level: ${power.level()}</p>
