@@ -483,6 +483,53 @@
             font-size: 0.85em;
             margin-bottom: 0;
         }
+
+        /* Drop Animation Styles */
+        #drop-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 30; /* Ensure it's on top of everything */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none; /* Allow clicks to pass through when hidden */
+        }
+
+        #drop-animation.show {
+            opacity: 1;
+            pointer-events: all; /* Block clicks when visible */
+        }
+
+        .chest-animation-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.9);
+            border: 2px solid #FFD700; /* Gold border */
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .chest-image {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
+
+        .drop-text {
+            font-size: 1.5em;
+            color: #FFD700; /* Gold text */
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -570,6 +617,14 @@
                 <!-- Power up details will be dynamically loaded here -->
             </div>
             <button id="close-power-ups-button">Close</button>
+        </div>
+
+        <!-- Drop Animation -->
+        <div id="drop-animation" style="display: none;">
+            <div class="chest-animation-container">
+                <img src="https://placehold.co/100x100/8B4513/FFD700?text=Chest" id="chest-img" class="chest-image" onerror="this.src='https://placehold.co/100x100/8B4513/FFD700?text=Chest'">
+                <div id="drop-info" class="drop-text">You got: ???</div>
+            </div>
         </div>
     </div>
 
@@ -700,10 +755,15 @@
         const closePowerUpsButton = document.getElementById('close-power-ups-button'); // New: Close Power Ups button
 
         const scoreDisplay = document.getElementById('score-display');
-        const timeDisplay = document.getElementById('time-display');
+        const timeDisplay = document = document.getElementById('time-display');
         const levelDisplay = document.getElementById('level-display');
         const xpBar = document.getElementById('xp-bar');
         const ultimateBar = document.getElementById('ultimate-bar');
+
+        // Drop animation elements
+        const dropAnimationDiv = document.getElementById('drop-animation');
+        const chestImg = document.getElementById('chest-img');
+        const dropInfo = document.getElementById('drop-info');
 
         // Game state variables
         let gameRunning = false;
@@ -792,6 +852,7 @@
                 flamethrowerArc: 0,
                 laserDamage: 0,
                 laserWidth: 0,
+                laserLength: 0, // New: Laser beam length
                 grenadeDamage: 0,
                 grenadeRadius: 0,
                 electricDamage: 0,
@@ -1024,10 +1085,11 @@
               level: () => player.upgrades.laserBeam,
               effect: () => {
                 player.upgrades.laserBeam++;
-                player.stats.laserDamage = 100 + player.upgrades.laserBeam * 50;
+                player.stats.laserDamage = 20 + player.upgrades.laserBeam * 10; // Reduced base damage
                 player.stats.laserWidth = 10 + player.upgrades.laserBeam * 2;
+                player.stats.laserLength = 200 + player.upgrades.laserBeam * 20; // Fixed length
               },
-              next: () => `Fire a piercing laser dealing ${100 + (player.upgrades.laserBeam + 1) * 50} damage. (Lvl ${player.upgrades.laserBeam + 1}/${MAX_UPGRADE_LEVEL})`,
+              next: () => `Fire a piercing laser dealing ${20 + (player.upgrades.laserBeam + 1) * 10} damage, length ${200 + (player.upgrades.laserBeam + 1) * 20}. (Lvl ${player.upgrades.laserBeam + 1}/${MAX_UPGRADE_LEVEL})`,
             },
             { id: 'grenadeLauncher', name: 'Grenade Launcher', description: 'Launches grenades that explode on impact.',
               level: () => player.upgrades.grenadeLauncher,
@@ -1125,6 +1187,25 @@
         // Helper function to calculate distance
         function dist(a, b) {
             return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+        }
+
+        // Function to check if a circle intersects a line segment
+        function circleLineSegmentIntersects(circleX, circleY, circleRadius, segX1, segY1, segX2, segY2) {
+            const dx = segX2 - segX1;
+            const dy = segY2 - segY1;
+            const lenSq = dx * dx + dy * dy;
+
+            let t = 0;
+            if (lenSq !== 0) { // Avoid division by zero for zero-length segments
+                t = ((circleX - segX1) * dx + (circleY - segY1) * dy) / lenSq;
+                t = Math.max(0, Math.min(1, t)); // Clamp t to [0, 1]
+            }
+
+            const closestX = segX1 + t * dx;
+            const closestY = segY1 + t * dy;
+
+            const distSq = (circleX - closestX) * (circleX - closestY) + (circleY - closestY) * (circleY - closestY);
+            return distSq <= circleRadius * circleRadius;
         }
 
         // --- New Collision Resolution Functions ---
@@ -1513,10 +1594,16 @@
                     const opacity = p.lifetime / 0.3; // 0.3 is the max lifetime for shotgun
                     currentSize = p.size * (0.5 + 0.5 * opacity); // Size shrinks as it fades
                     currentColor = `rgba(255, 255, 255, ${opacity})`; // White with fading opacity
-                } else if (p.isLaser) {
-                    // Laser is drawn as a rectangle
-                    ctx.fillStyle = currentColor;
-                    ctx.fillRect(screenX - p.size / 2, screenY - p.width / 2, p.size, p.width);
+                } else if (p.isLaser && p.isBeam) { // Check for both isLaser and isBeam
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = p.width;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 10; // Add a glow effect
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(screenX + p.vx, screenY + p.vy); // p.vx, p.vy now define the end point relative to p.x, p.y
+                    ctx.stroke();
+                    ctx.shadowBlur = 0; // Reset shadow
                     return; // Skip default circle draw
                 } else if (p.isHoming) {
                     ctx.fillStyle = currentColor;
@@ -1584,6 +1671,7 @@
                     case 'experience': indicatorText = 'E'; break; // Added 'E' for experience
                     case 'invincibility': indicatorText = 'I'; break; // New: Invincibility
                     case 'damageBoost': indicatorText = 'D+'; break; // New: Damage Boost
+                    case 'friendlyDrone': indicatorText = 'D'; break; // Friendly Drone
                 }
 
                 if (indicatorText) {
@@ -1832,7 +1920,7 @@
             }
         
             player.health += player.stats.healthRegen * effectiveDt;
-            player.health = Math.min(player.health, player.maxHealth);
+            player.health = Math.min(player.health + player.stats.healthRegen * effectiveDt, player.maxHealth); // Fixed health regen
         
             // Uzi Spiral Attack (replaces Circular Wave) - Fibonacci Spiral with spray
             if (keys.e && player.stats.uziDamage > 0 && player.uziTimer <= 0) {
@@ -1902,19 +1990,60 @@
                     const closestEnemy = findClosestEnemy();
                     if (closestEnemy) {
                         const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                        const beamEndX = player.x + Math.cos(angle) * player.stats.laserLength;
+                        const beamEndY = player.y + Math.sin(angle) * player.stats.laserLength;
+
+                        // Create the laser projectile for visual representation
                         projectiles.push({
                             x: player.x,
                             y: player.y,
-                            vx: Math.cos(angle) * 1000, // Very fast
-                            vy: Math.sin(angle) * 1000,
-                            size: 1000, // Length of the laser
-                            width: player.stats.laserWidth, // Width of the laser
-                            damage: player.stats.laserDamage,
-                            color: '#FF00FF', // Pink/Purple for laser
-                            pierce: Infinity, // Pierces all enemies
-                            hits: 0,
+                            vx: beamEndX - player.x, // Store relative end X for drawing
+                            vy: beamEndY - player.y, // Store relative end Y for drawing
+                            width: player.stats.laserWidth,
+                            color: '#FF0000', // Red color
                             isLaser: true,
-                            lifetime: 0.1 // Very short lifetime for visual flash
+                            isBeam: true, // New flag for drawing as a line
+                            lifetime: 0.5 // Lasts for 0.5 seconds
+                        });
+
+                        // Apply damage to all enemies intersecting the beam
+                        enemies.forEach(enemy => {
+                            if (!enemy.controlled && circleLineSegmentIntersects(enemy.x, enemy.y, enemy.size / 2, player.x, player.y, beamEndX, beamEndY)) {
+                                let damageDealt = player.stats.laserDamage;
+                                if (activeTemporaryEffects.damageBoost) {
+                                    damageDealt *= 2;
+                                }
+                                enemy.health -= damageDealt;
+                                ultimateCharge += ultimateChargePerHit;
+                                showDamageNumber(damageDealt, enemy.x, enemy.y);
+                                playSound('enemyHit');
+
+                                // Apply poison if upgraded
+                                if (player.upgrades.poisonDarts > 0) {
+                                    enemy.isPoisoned = true;
+                                    enemy.poisonTimer = player.stats.poisonDuration;
+                                    enemy.poisonTickTimer = 0;
+                                }
+
+                                // Apply cryo slow if upgraded
+                                if (player.upgrades.cryoBlast > 0 && !enemy.isSlowed) {
+                                    enemy.isSlowed = true;
+                                    enemy.slowTimer = player.stats.cryoSlowDuration;
+                                    enemy.originalSpeed = enemy.speed;
+                                    enemy.speed *= (1 - player.stats.cryoSlowAmount);
+                                }
+
+                                if (enemy.health <= 0) {
+                                    gainXp(enemy.xp);
+                                    score += 10;
+                                    if (Math.random() < 0.1) {
+                                        spawnPowerup(enemy.x, enemy.y);
+                                    }
+                                    if (enemy.type === 'elite') {
+                                        enemies.push(createControlledEnemy(enemy.x, enemy.y));
+                                    }
+                                }
+                            }
                         });
                         playSound('playerShot'); // Use player shot sound
                     }
@@ -2426,8 +2555,11 @@
                     }
                 }
 
-                p.x += p.vx * effectiveDt; 
-                p.y += p.vy * effectiveDt; 
+                // For non-beam projectiles, update position
+                if (!p.isBeam) {
+                    p.x += p.vx * effectiveDt; 
+                    p.y += p.vy * effectiveDt; 
+                }
                 
                 // Decrease lifetime for all projectiles, especially shotgun
                 p.lifetime -= effectiveDt; 
@@ -2592,30 +2724,6 @@
             });
         }
 
-        function updateShieldDroneCount() {
-            // Remove excess drones if level decreased (shouldn't happen)
-            while (shieldDrones.length > player.stats.shieldDroneCount) {
-                shieldDrones.pop();
-            }
-            // Add new drones if needed
-            while (shieldDrones.length < player.stats.shieldDroneCount) {
-                shieldDrones.push({
-                    x: player.x,
-                    y: player.y,
-                    size: 20, // Shield drone size
-                    health: player.stats.shieldDroneHealth,
-                    maxHealth: player.stats.shieldDroneHealth,
-                    angleOffset: Math.random() * Math.PI * 2, // For orbiting
-                    orbitRadius: 70 + shieldDrones.length * 15 // Vary orbit radius
-                });
-            }
-            // Update existing drone stats
-            shieldDrones.forEach(drone => {
-                drone.maxHealth = player.stats.shieldDroneHealth;
-                drone.health = Math.min(drone.health, drone.maxHealth); // Cap health
-            });
-        }
-
         function updateShieldDrones(dt) {
             // Determine effective game speed based on active Bullet Time
             let currentGlobalSpeedMultiplier = 1;
@@ -2679,6 +2787,11 @@
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const p = projectiles[i];
                 let projectileRemoved = false;
+
+                // Skip collision checks for laser beams as their damage is applied at creation
+                if (p.isBeam) {
+                    continue;
+                }
 
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     const enemy = enemies[j];
@@ -2937,8 +3050,8 @@
             for (let i = chests.length - 1; i >= 0; i--) {
                 const chest = chests[i];
                 if (dist(player, chest) < (player.size / 2 + chest.size / 2)) {
-                    // Pass the specific powerupType from the chest
-                    activateTemporaryPowerup(chest.powerupType); 
+                    // Trigger the animation first, then activate the powerup
+                    openChestAnimation(chest.powerupType); 
                     chests.splice(i, 1);
                 }
             }
@@ -3157,13 +3270,43 @@
         function spawnChest() {
             const x = Math.random() * gameWorld.width;
             const y = Math.random() * gameWorld.height;
-            // Removed friendlyDrone from chest powerup options
-            const powerupChoices = ['spreadGun', 'extremeBulletTime', 'experience', 'invincibility', 'damageBoost']; 
+            const powerupChoices = ['spreadGun', 'extremeBulletTime', 'experience', 'invincibility', 'damageBoost', 'friendlyDrone']; // Added friendlyDrone to chest powerup options
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
 
             chests.push({
                 x: x, y: y, size: 30, type: 'chest', powerupType: chosenPowerup
             });
+        }
+
+        // Function to trigger the chest opening animation and then activate the powerup
+        function openChestAnimation(powerupType) {
+            // Map internal powerupType to display name
+            const powerupDisplayNameMap = {
+                'spreadGun': 'Spread Shot',
+                'extremeBulletTime': 'Extreme Bullet Time',
+                'experience': 'Experience Boost',
+                'invincibility': 'Invincibility',
+                'damageBoost': 'Damage Boost',
+                'friendlyDrone': 'Friendly Drone'
+            };
+            const displayName = powerupDisplayNameMap[powerupType] || powerupType;
+
+            gameRunning = false; // Pause the game during animation
+            Tone.Destination.mute = true; // Mute sound during animation
+
+            chestImg.src = 'https://placehold.co/100x100/8B4513/FFD700?text=OPEN'; // Placeholder for open chest
+            dropInfo.textContent = `You got: ${displayName}!`;
+            dropAnimationDiv.classList.add('show');
+
+            setTimeout(() => {
+                dropAnimationDiv.classList.remove('show');
+                chestImg.src = 'https://placehold.co/100x100/8B4513/FFD700?text=Chest'; // Reset to closed chest
+                activateTemporaryPowerup(powerupType); // Activate the actual powerup after animation
+                gameRunning = true; // Resume game
+                lastTime = performance.now(); // Reset lastTime to prevent large deltaTime on resume
+                Tone.Destination.mute = false; // Unmute sound
+                requestAnimationFrame(gameLoop);
+            }, 2000); // Show animation for 2 seconds
         }
 
         // Modified to accept a specific powerup type
@@ -3188,6 +3331,17 @@
                 case 'damageBoost':
                     // Effect handled in checkCollisions
                     break;
+                case 'friendlyDrone':
+                    // Manually increment friendlyDrone upgrade level and update drones
+                    // This is for the temporary chest drop, not the permanent upgrade path
+                    // We need to ensure that if the player already has friendlyDrone upgrades,
+                    // this temporary one adds on top without resetting the permanent ones.
+                    player.stats.friendlyDrones += 1; // Add one temporary drone
+                    // Ensure drone stats are updated for the new drone
+                    player.stats.droneAttackSpeed = 1 + player.upgrades.friendlyDrone * 0.2; // Base + permanent upgrade
+                    player.stats.droneDamage = 10 + player.upgrades.friendlyDrone * 5; // Base + permanent upgrade
+                    updateDroneCount(); // Re-evaluate drone count and add/remove as needed
+                    break;
             }
         }
 
@@ -3211,6 +3365,16 @@
                     break;
                 case 'experience':
                     // No explicit reset needed
+                    break;
+                case 'friendlyDrone':
+                    // Remove the temporary drone added by the chest
+                    player.stats.friendlyDrones = Math.max(0, player.stats.friendlyDrones - 1);
+                    updateDroneCount(); // Remove the drone
+                    // If no permanent friendlyDrone upgrades, reset drone stats
+                    if (player.upgrades.friendlyDrone === 0 && player.stats.friendlyDrones === 0) {
+                        player.stats.droneAttackSpeed = 0;
+                        player.stats.droneDamage = 0;
+                    }
                     break;
             }
         }
@@ -3327,9 +3491,11 @@
             if (gameRunning) {
                 pauseButton.textContent = "Pause";
                 lastTime = performance.now(); // Reset lastTime to prevent large deltaTime on resume
+                Tone.Destination.mute = false; // Unmute sound
                 requestAnimationFrame(gameLoop);
             } else {
                 pauseButton.textContent = "Resume";
+                Tone.Destination.mute = true; // Mute sound
             }
         }
 
@@ -3337,6 +3503,7 @@
         function openGameMenu() {
             wasGameRunningBeforeMenu = gameRunning; // Store current game running state
             gameRunning = false; // Pause the game
+            Tone.Destination.mute = true; // Mute sound when menu opens
             gameMenu.style.display = 'block'; // Show the game menu
             howToPlayMenu.style.display = 'none'; // Ensure how to play menu is hidden
             powerUpsMenu.style.display = 'none'; // Ensure power ups menu is hidden
@@ -3348,6 +3515,7 @@
             if (wasGameRunningBeforeMenu) { // Resume game only if it was running before
                 gameRunning = true;
                 lastTime = performance.now(); // Reset lastTime to prevent large deltaTime on resume
+                Tone.Destination.mute = false; // Unmute sound when menu closes and game resumes
                 requestAnimationFrame(gameLoop);
             }
         }
@@ -3355,6 +3523,7 @@
         // New: Function to open How to Play menu
         function openHowToPlayMenu() {
             gameRunning = false; // Pause game
+            Tone.Destination.mute = true; // Mute sound
             gameMenu.style.display = 'none'; // Hide main game menu
             howToPlayMenu.style.display = 'block'; // Show How to Play menu
         }
@@ -3368,6 +3537,7 @@
         // New: Function to open Power Ups menu
         function openPowerUpsMenu() {
             gameRunning = false; // Pause game
+            Tone.Destination.mute = true; // Mute sound
             gameMenu.style.display = 'none'; // Hide main game menu
             powerUpsMenu.style.display = 'block'; // Show Power Ups menu
             populatePowerUpsList(); // Populate the list when opened
@@ -3386,7 +3556,7 @@
             POWER_OPTIONS.forEach(power => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'power-up-item';
-                itemDiv.innerHTML = `
+                item.innerHTML = `
                     <h4>${power.name}</h4>
                     <p>${power.description}</p>
                     <p>Current Level: ${power.level()}</p>
@@ -3492,6 +3662,7 @@
         
         async function gameOver() {
             gameRunning = false;
+            Tone.Destination.mute = true; // Mute sound on game over
             playSound('gameOver');
             
             gameOverMenu.style.display = 'block';
@@ -3718,6 +3889,7 @@
                 flamethrowerArc: 0,
                 laserDamage: 0,
                 laserWidth: 0,
+                laserLength: 0, // Reset laser length
                 grenadeDamage: 0,
                 grenadeRadius: 0,
                 electricDamage: 0,
