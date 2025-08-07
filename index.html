@@ -401,6 +401,28 @@
             color: #00ffff;
             font-weight: bold;
         }
+
+        /* Mini-map styles */
+        #miniMapContainer {
+            position: absolute;
+            top: 10px; /* Adjust as needed */
+            right: 10px; /* Adjust as needed */
+            width: 150px; /* Fixed width */
+            height: 150px; /* Fixed height */
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 1px solid #555;
+            border-radius: 5px;
+            overflow: hidden; /* Ensure content stays within bounds */
+            pointer-events: none; /* Do not block clicks on game elements */
+            z-index: 10; /* Above game canvas, below menus */
+        }
+
+        #miniMapCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
     </style>
 </head>
 <body>
@@ -417,6 +439,11 @@
             <div id="top-right-controls">
                 <div id="time-display" class="hud-item">Time: 0s</div>
                 <button id="menuButton" class="control-button">Menu</button>
+            </div>
+
+            <!-- Mini-map container -->
+            <div id="miniMapContainer">
+                <canvas id="miniMapCanvas"></canvas>
             </div>
 
             <div id="level-display" class="hud-item">Level: 1</div>
@@ -586,6 +613,11 @@
         const xpBar = document.getElementById('xp-bar');
         const ultimateBar = document.getElementById('ultimate-bar');
 
+        // Mini-map elements
+        const miniMapCanvas = document.getElementById('miniMapCanvas');
+        const miniMapCtx = miniMapCanvas.getContext('2d');
+        let miniMapScale = 1; // Will be calculated in init
+
         // Game state variables
         let gameRunning = false;
         let lastTime = 0;
@@ -610,8 +642,12 @@
         let temporaryPowerupActive = false; // Flag for temporary power-ups
         let temporaryPowerupDuration = 0; // Duration for temporary power-ups
         let temporaryPowerupType = ''; // Type of active temporary power-up (e.g., 'spreadGun', 'friendlyDog')
-        let chestSpawnTimer = 0;
-        const CHEST_SPAWN_INTERVAL = 15; // Chest spawns every 15 seconds
+        
+        // Removed chestSpawnTimer and CHEST_SPAWN_INTERVAL
+        let randomChestSpawnTimer = 0; // New timer for random chest spawns
+        const RANDOM_CHEST_SPAWN_INTERVAL = 5; // Check for random chest every 5 seconds
+        const RANDOM_CHEST_SPAWN_CHANCE = 0.01; // 1% chance for a chest to spawn
+        
         let chests = []; // Array for chests
         let drones = []; // Array for combat drones
         let boomerangs = []; // Array for boomerangs
@@ -1131,6 +1167,7 @@
 
             ctx.restore(); // Restore context to original scale for UI
             drawUI();
+            drawMiniMap(); // Draw mini-map last so it's on top of UI
         }
         
         function drawBackground() {
@@ -1647,6 +1684,54 @@
             }
         }
 
+        function drawMiniMap() {
+            miniMapCtx.clearRect(0, 0, miniMapCanvas.width, miniMapCanvas.height);
+
+            // Draw mini-map background
+            miniMapCtx.fillStyle = '#1a1a1a';
+            miniMapCtx.fillRect(0, 0, miniMapCanvas.width, miniMapCanvas.height);
+
+            // Draw obstacles on mini-map
+            miniMapCtx.fillStyle = '#444444'; // Darker grey for obstacles
+            obstacles.forEach(obstacle => {
+                const miniX = obstacle.x * miniMapScale;
+                const miniY = obstacle.y * miniMapScale;
+                if (obstacle.type === 'pillar') {
+                    miniMapCtx.beginPath();
+                    miniMapCtx.arc(miniX, miniY, obstacle.width / 2 * miniMapScale, 0, Math.PI * 2);
+                    miniMapCtx.fill();
+                } else {
+                    miniMapCtx.fillRect(miniX, miniY, obstacle.width * miniMapScale, obstacle.height * miniMapScale);
+                }
+            });
+
+            // Draw enemies on mini-map
+            enemies.forEach(enemy => {
+                const miniX = enemy.x * miniMapScale;
+                const miniY = enemy.y * miniMapScale;
+                miniMapCtx.fillStyle = enemy.controlled ? '#00ff66' : '#ff0000'; // Green for allied, red for hostile
+                miniMapCtx.beginPath();
+                miniMapCtx.arc(miniX, miniY, enemy.size / 2 * miniMapScale, 0, Math.PI * 2);
+                miniMapCtx.fill();
+            });
+
+            // Draw player on mini-map
+            const miniPlayerX = player.x * miniMapScale;
+            const miniPlayerY = player.y * miniMapScale;
+            miniMapCtx.fillStyle = '#00ffff'; // Cyan for player
+            miniMapCtx.beginPath();
+            miniMapCtx.arc(miniPlayerX, miniPlayerY, player.size / 2 * miniMapScale, 0, Math.PI * 2);
+            miniMapCtx.fill();
+
+            // Draw chests on mini-map
+            chests.forEach(chest => {
+                const miniX = chest.x * miniMapScale;
+                const miniY = chest.y * miniMapScale;
+                miniMapCtx.fillStyle = '#FFD700'; // Gold for chests
+                miniMapCtx.fillRect(miniX - chest.size / 2 * miniMapScale, miniY - chest.size / 2 * miniMapScale, chest.size * miniMapScale, chest.size * miniMapScale);
+            });
+        }
+
         function drawStartMenu() {
             startMenu.style.display = 'block';
             gameOverMenu.style.display = 'none';
@@ -2067,6 +2152,8 @@
                         stuckTimer: 0, // Initialize stuck timer
                         ghostModeActive: false, // Initialize ghost mode flag
                         ghostModeTimer: 0, // Initialize ghost mode timer
+                        lastX: x, // For stuck detection
+                        lastY: y, // For stuck detection
                         ...getEnemyStats(enemyType)
                     };
                     enemies.push(newEnemy);
@@ -2100,7 +2187,7 @@
                         angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
                         // Cobras move primarily horizontally
                         enemy.vx = Math.cos(angle) * enemy.speed;
-                        enemy.vy = 0; // Restrict vertical movement for head
+                        enemy.vy = Math.sin(angle) * enemy.speed; // Allow vertical movement for head
                     } else { // Body segments follow previous segment
                         const prevSegment = enemies.find(e => e.snakeId === enemy.snakeId && e.segmentIndex === enemy.segmentIndex - 1);
                         if (prevSegment) {
@@ -2208,7 +2295,7 @@
 
                 // Apply resolved position and velocity back to enemy
                 enemy.x = tempEnemy.x;
-                enemy.y = temp.y; // Corrected to use temp.y
+                enemy.y = tempEnemy.y;
                 enemy.vx = tempEnemy.vx; 
                 enemy.vy = tempEnemy.vy;
 
@@ -2530,6 +2617,7 @@
                             gainXp(enemy.xp);
                             score += 10;
                             spawnParticles(enemy.x, enemy.y, enemy.color);
+                            // Powerups (XP coins) still drop from enemies
                             if (Math.random() < 0.1) {
                                 spawnPowerup(enemy.x, enemy.y);
                             }
@@ -2779,6 +2867,8 @@
                         stuckTimer: 0, // Initialize stuck timer
                         ghostModeActive: false, // Initialize ghost mode flag
                         ghostModeTimer: 0, // Initialize ghost mode timer
+                        lastX: x, // For stuck detection
+                        lastY: y, // For stuck detection
                         ...getEnemyStats(enemyType)
                     };
                     enemies.push(newEnemy);
@@ -2805,6 +2895,8 @@
                     stuckTimer: 0, // Initialize stuck timer
                     ghostModeActive: false, // Initialize ghost mode flag
                     ghostModeTimer: 0, // Initialize ghost mode timer
+                    lastX: segmentX, // For stuck detection
+                    lastY: segmentY, // For stuck detection
                     ...getEnemyStats('cobra')
                 });
             }
@@ -2926,6 +3018,8 @@
                 stuckTimer: 0, // Initialize stuck timer
                 ghostModeActive: false, // Initialize ghost mode flag
                 ghostModeTimer: 0, // Initialize ghost mode timer
+                lastX: x, // For stuck detection
+                lastY: y, // For stuck detection
             };
         }
 
@@ -2974,9 +3068,8 @@
             });
         }
 
-        function spawnChest() {
-            const x = Math.random() * gameWorld.width;
-            const y = Math.random() * gameWorld.height;
+        // Modified spawnChest function to accept coordinates
+        function spawnChestAtLocation(x, y) {
             chests.push({
                 x: x, y: y, size: 30, type: 'chest'
             });
@@ -3161,6 +3254,7 @@
             shootTimer = 0;
             spawnTimer = 0;
             musicPatternTimer = 0;
+            randomChestSpawnTimer = 0; // Reset random chest spawn timer
             gameSpeedMultiplier = 1; 
             playerSpeedModifier = 1; // Reset player speed modifier
             projectileSpeedModifier = 1; // Reset projectile speed modifier
@@ -3169,7 +3263,6 @@
             temporaryPowerupActive = false; 
             temporaryPowerupDuration = 0;
             temporaryPowerupType = '';
-            chestSpawnTimer = 0;
             lastUziSoundTime = 0;
 
 
@@ -3209,11 +3302,16 @@
             shootTimer += effectiveDt;
             spawnTimer += effectiveDt;
             musicPatternTimer += effectiveDt;
-            chestSpawnTimer += effectiveDt; // Update chest spawn timer
+            randomChestSpawnTimer += effectiveDt; // Update random chest spawn timer
 
-            if (chestSpawnTimer >= CHEST_SPAWN_INTERVAL) {
-                spawnChest();
-                chestSpawnTimer = 0;
+            // Check for random chest spawn
+            if (randomChestSpawnTimer >= RANDOM_CHEST_SPAWN_INTERVAL) {
+                if (Math.random() < RANDOM_CHEST_SPAWN_CHANCE) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    spawnChestAtLocation(x, y);
+                }
+                randomChestSpawnTimer = 0;
             }
 
             if (musicPatternTimer >= MUSIC_PATTERN_CHANGE_INTERVAL) {
@@ -3442,12 +3540,23 @@
             // Adjust camera width/height based on zoom
             camera.width = canvas.width / camera.zoom;
             camera.height = canvas.height / camera.zoom;
-        
+
+            // Initialize mini-map canvas size and scale
+            miniMapCanvas.width = miniMapCanvas.clientWidth;
+            miniMapCanvas.height = miniMapCanvas.clientHeight;
+            miniMapScale = miniMapCanvas.width / gameWorld.width; // Assuming square mini-map and world
+
             window.addEventListener('resize', () => {
                 canvas.width = gameContainer.clientWidth;
                 canvas.height = gameContainer.clientHeight;
                 camera.width = canvas.width / camera.zoom; // Recalculate based on zoom
                 camera.height = canvas.height / camera.zoom; // Recalculate based on zoom
+
+                // Re-initialize mini-map size and scale on resize
+                miniMapCanvas.width = miniMapCanvas.clientWidth;
+                miniMapCanvas.height = miniMapCanvas.clientHeight;
+                miniMapScale = miniMapCanvas.width / gameWorld.width;
+
                 if (!gameRunning) {
                     drawStartMenu();
                 }
@@ -3525,6 +3634,8 @@
                 console.error("Firebase initialization function not found.");
             }
         }
+
+        let obstacles = []; // Define obstacles globally
 
         function generateObstacles() {
             // Clear existing obstacles before generating new ones
@@ -3611,6 +3722,7 @@
 
             currentMusicPatternIndex = 0;
             musicPatternTimer = 0;
+            randomChestSpawnTimer = 0; // Reset random chest spawn timer
             gameSpeedMultiplier = 1; 
             playerSpeedModifier = 1; 
             projectileSpeedModifier = 1; 
@@ -3619,7 +3731,6 @@
             temporaryPowerupActive = false; 
             temporaryPowerupDuration = 0;
             temporaryPowerupType = '';
-            chestSpawnTimer = 0;
 
 
             enemies = [];
