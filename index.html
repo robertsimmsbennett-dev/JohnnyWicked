@@ -777,7 +777,7 @@
                 pierce: 0,
                 multiShot: 1,
                 healthRegen: 0.1,
-                magnet: 50,
+                magnet: 80, // Increased default magnet range
                 damageReduction: 0, 
                 spinningKnivesDamage: 0, 
                 spinningKnivesCount: 0, 
@@ -848,7 +848,7 @@
         let highestHotelLobbyScore = 0; // User's highest score for hotel lobby, loaded from Firebase
 
         // Enemy and power-up configuration
-        const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull']; 
+        const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull', 'enforcer']; 
         const MAX_UPGRADE_LEVEL = 8;
         const POWER_OPTIONS = [
             { id: 'damage', name: 'Increase Damage', description: 'Increases projectile damage.',
@@ -1409,6 +1409,16 @@
 
                 ctx.fillRect(screenX - s * 0.1, screenY - s * 0.3, s * 0.2, s * 0.1); 
                 ctx.fillRect(screenX - s * 0.2, screenY - s * 0.1, s * 0.4, s * 0.05); 
+            } else if (enemy.type === 'enforcer') {
+                ctx.fillStyle = enemy.color; 
+                ctx.fillRect(screenX - s/2, screenY - s, s, s*2); 
+                ctx.fillStyle = '#AAAAAA'; 
+                ctx.fillRect(screenX - s*0.6, screenY - s*0.5, s*1.2, s*0.2); 
+                ctx.fillRect(screenX - s*0.1, screenY - s*0.8, s*0.2, s*0.4); 
+                ctx.fillStyle = '#FF0000'; 
+                ctx.beginPath();
+                ctx.arc(screenX, screenY - s*0.6, s*0.15, 0, Math.PI * 2); 
+                ctx.fill();
             }
             else {
                 // Head
@@ -2259,7 +2269,10 @@
                 let enemyType = 'basic';
                 const timeInMinutes = survivalTime / 60;
 
-                if (timeInMinutes < 0.5) { 
+                // New logic for spawning 'enforcer' every 5 minutes
+                if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { // 10% chance every 5 minutes
+                    enemyType = 'enforcer';
+                } else if (timeInMinutes < 0.5) { 
                     const rand = Math.random();
                     if (rand < 0.5) enemyType = 'basic';
                     else if (rand < 0.7) enemyType = 'enemyDog';
@@ -2382,6 +2395,41 @@
                         explodeRobotDrone(enemy);
                         return false; 
                     }
+                } else if (enemy.type === 'enforcer') {
+                    const distance = dist(player, enemy);
+                    if (distance < enemy.attackRange) {
+                        enemy.vx = 0;
+                        enemy.vy = 0;
+                        enemy.shootTimer += effectiveDt;
+                        if (enemy.shootTimer >= 1 / enemy.attackSpeed) {
+                            const attackAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                            const numProjectiles = 5; // Number of "pellets" in the cone
+                            const coneSpread = Math.PI / 4; // 45 degree cone
+                            for (let i = 0; i < numProjectiles; i++) {
+                                const spread = (i - (numProjectiles - 1) / 2) * (coneSpread / numProjectiles);
+                                const projectileAngle = attackAngle + spread;
+                                enemyProjectiles.push({
+                                    x: enemy.x,
+                                    y: enemy.y,
+                                    vx: Math.cos(projectileAngle) * enemy.projectileSpeed,
+                                    vy: Math.sin(projectileAngle) * enemy.projectileSpeed,
+                                    size: enemy.projectileSize,
+                                    damage: enemy.projectileDamage,
+                                    color: enemy.projectileColor,
+                                    isAoE: false, // Not a persistent AoE, but a spread of projectiles
+                                    lifetime: 0.2, // Very short lifetime
+                                    maxLifetime: 0.2,
+                                    sourceEnemy: enemy // To prevent self-damage
+                                });
+                            }
+                            playSound('playerShot'); // Re-use playerShot sound for now
+                            enemy.shootTimer = 0;
+                        }
+                    } else {
+                        angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        enemy.vx = Math.cos(angle) * enemy.speed;
+                        enemy.vy = Math.sin(angle) * enemy.speed;
+                    }
                 } else { 
                     const distance = dist(player, enemy);
                     if ((enemy.type === 'gunner' || enemy.type === 'fast' || enemy.type === 'drone' || enemy.type === 'enemyDrone') && distance < enemy.attackRange) {
@@ -2402,7 +2450,8 @@
                                 isAoE: isBazooka, 
                                 aoeRadius: isBazooka ? 70 : 0, 
                                 lifetime: isBazooka ? 1 : 0, 
-                                maxLifetime: isBazooka ? 1 : 0 
+                                maxLifetime: isBazooka ? 1 : 0,
+                                sourceEnemy: enemy // To prevent self-damage
                             });
                             enemy.shootTimer = 0;
                         }
@@ -2516,11 +2565,11 @@
                 p.x += p.vx * effectiveDt; 
                 p.y += p.vy * effectiveDt; 
 
-                if (p.isAoE) {
+                if (p.isAoE || p.lifetime !== undefined) { // Check for both AoE and general lifetime
                     p.lifetime -= effectiveDt;
                 }
 
-                return p.x > -100 && p.x < gameWorld.width + 100 && p.y > -100 && p.y < gameWorld.height + 100 && (!p.isAoE || p.lifetime > 0);
+                return p.x > -100 && p.x < gameWorld.width + 100 && p.y > -100 && p.y < gameWorld.height + 100 && (!p.isAoE && p.lifetime === undefined || p.lifetime > 0);
             });
         }
         
@@ -2750,7 +2799,7 @@
             enemies.forEach(enemy => {
                 if (!enemy.controlled) {
                     if (dist(player, enemy) < (player.size / 2 + enemy.size / 2) && 
-                        (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull')) {
+                        (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull' || enemy.type === 'enforcer')) { // Added enforcer
                         let damageTaken = enemy.damage;
                         damageTaken = damageTaken * (1 - player.stats.damageReduction);
                         
@@ -2803,7 +2852,7 @@
 
             for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
                 const p = enemyProjectiles[i];
-                if (dist(player, p) < (player.size / 2 + p.size / 2)) {
+                if (p.sourceEnemy && dist(p.sourceEnemy, player) < p.sourceEnemy.attackRange && dist(player, p) < (player.size / 2 + p.size / 2)) { // Only hit if within source enemy's attack range
                     let damageTaken = p.damage;
                     damageTaken = damageTaken * (1 - player.stats.damageReduction);
 
@@ -2904,8 +2953,11 @@
                     gainXp(enemy.xp);
                     score += 10;
                     spawnParticles(enemy.x, enemy.y, enemy.color);
-                    if (Math.random() < 0.1) {
-                        spawnPowerup(enemy.x, enemy.y);
+                    // Always spawn powerup (coin) when enemy dies
+                    spawnPowerup(enemy.x, enemy.y); 
+                    // Guaranteed treasure drop for 'enforcer'
+                    if (enemy.type === 'enforcer') {
+                        spawnChestAtLocation(enemy.x, enemy.y);
                     }
                     return false; 
                 }
@@ -2949,7 +3001,10 @@
                 let enemyType = 'basic';
                 const timeInMinutes = survivalTime / 60;
 
-                if (timeInMinutes < 0.5) { 
+                // New logic for spawning 'enforcer' every 5 minutes
+                if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { // 10% chance every 5 minutes
+                    enemyType = 'enforcer';
+                } else if (timeInMinutes < 0.5) { 
                     const rand = Math.random();
                     if (rand < 0.5) enemyType = 'basic';
                     else if (rand < 0.7) enemyType = 'enemyDog';
@@ -3109,6 +3164,20 @@
                     base.color = '#FFFF00'; 
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; 
                     break;
+                case 'enforcer': // New 'Extreme' enemy
+                    base.size = 40; // Larger size
+                    base.speed = 10; // Very slow
+                    base.health = 1000; // Very high health
+                    base.damage = 30; // High melee damage
+                    base.xp = 500; // High XP
+                    base.color = '#8B0000'; // Dark Red
+                    base.attackRange = 80; // Short range for its special attack
+                    base.attackSpeed = 0.5; // Moderate attack speed for special attack
+                    base.projectileSize = 20; // Visual size of the "cone" projectiles
+                    base.projectileDamage = 40; // Damage of the cone attack
+                    base.projectileSpeed = 100; // Speed of the cone projectiles (short-lived)
+                    base.projectileColor = '#FF4500'; // Orange-red for attack
+                    break;
                 default: 
                     base.color = '#777777';
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0;
@@ -3128,7 +3197,7 @@
             base.speed *= speedScale;
             base.xp = Math.floor(base.xp * ((healthScale + damageScale) / 2) * 0.5); 
 
-            if (type === 'gunner' || type === 'fast' || type === 'drone' || type === 'enemyDrone') { 
+            if (type === 'gunner' || type === 'fast' || type === 'drone' || type === 'enemyDrone' || type === 'enforcer') { // Added enforcer
                 base.projectileDamage *= damageScale;
                 base.attackSpeed *= (1 + Math.min(survivalTime / 180, 1));
             }
@@ -3171,9 +3240,10 @@
         }
         
         function spawnPowerup(x, y) {
+            // Reduced XP value as enemies always drop coins now
             powerups.push({
                 x: x, y: y, size: 10, color: '#ffff00', speed: 300, 
-                xpValue: Math.floor((50 + Math.floor(Math.random() * 50)) * 1.5) 
+                xpValue: 10 // Fixed lower XP value
             });
         }
 
@@ -3595,8 +3665,8 @@
                     const parts = colorInput.match(/\d+/g).map(Number);
                     if (parts.length >= 3) {
                         r = parts[0];
-                        g = parts[0];
-                        b = parts[0];
+                        g = parts[1];
+                        b = parts[2];
                     }
                 }
             } else {
@@ -3792,7 +3862,7 @@
 
             player.stats = {
                 damage: 20, attackSpeed: 10, projectileSpeed: 400, pierce: 0, multiShot: 1, 
-                healthRegen: 0.1, magnet: 50, damageReduction: 0, 
+                healthRegen: 0.1, magnet: 80, damageReduction: 0, // Magnet range increased
                 spinningKnivesDamage: 0, spinningKnivesCount: 0, 
                 burstDamage: 0, burstProjectileCount: 0,
                 droneCount: 0, droneDamage: 0, droneAttackSpeed: 0,
