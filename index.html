@@ -71,7 +71,7 @@
             border: 1px solid #333;
         }
         
-        /* New styles for top-left and top-right control groups */
+        /* Top Left Controls: Score and Pause Button */
         #top-left-controls {
             position: absolute;
             top: 10px;
@@ -83,14 +83,15 @@
             pointer-events: all; /* Allow interaction */
         }
 
-        #top-right-controls {
+        /* Bottom Left Controls: Time, Menu, and Level */
+        #bottom-left-controls {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex; /* Use flexbox for vertical alignment */
-            flex-direction: column; /* Stack items vertically */
-            align-items: flex-end; /* Align items to the right */
-            gap: 5px; /* Space between items */
+            bottom: 10px;
+            left: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
             pointer-events: all; /* Allow interaction */
         }
 
@@ -99,7 +100,7 @@
             margin-bottom: 5px; /* Space between score and pause button */
         }
         
-        /* Time display now part of top-right-controls */
+        /* Time display now part of bottom-left-controls */
         #time-display {
             position: static; /* Remove absolute positioning from here */
             margin-bottom: 5px; /* Space between time and menu button */
@@ -107,8 +108,8 @@
         }
         
         #level-display {
-            bottom: 10px;
-            left: 10px;
+            position: static; /* Remove absolute positioning from here */
+            /* No margin-bottom needed as it's the last item */
         }
         
         #xp-bar-container {
@@ -435,10 +436,11 @@
                 <button id="pauseButton" class="control-button">Pause</button>
             </div>
 
-            <!-- Top Right Controls: Time and Menu Button -->
-            <div id="top-right-controls">
+            <!-- Bottom Left Controls: Time, Menu, and Level -->
+            <div id="bottom-left-controls">
                 <div id="time-display" class="hud-item">Time: 0s</div>
                 <button id="menuButton" class="control-button">Menu</button>
+                <div id="level-display" class="hud-item">Level: 1</div>
             </div>
 
             <!-- Mini-map container -->
@@ -446,7 +448,6 @@
                 <canvas id="miniMapCanvas"></canvas>
             </div>
 
-            <div id="level-display" class="hud-item">Level: 1</div>
             <div id="xp-bar-container"><div id="xp-bar"></div></div>
             <div id="ultimate-bar-container"><div id="ultimate-bar"></div></div>
             <button id="ultimate-button">Wicked Mode</button>
@@ -757,6 +758,7 @@
         let isMusicMuted = false; // New state variable
         let lastUziSoundTime = 0; // Cooldown for Uzi sound
         const UZI_SOUND_COOLDOWN = 0.05; // 0.05 seconds cooldown for Uzi sound
+        let levelUpQueue = []; // New: Queue for pending level-ups
 
         // Enemy and power-up configuration
         const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull']; // Added new enemy types
@@ -1443,7 +1445,7 @@
             enemyProjectiles.forEach(p => {
                 const screenX = p.x - camera.x;
                 const screenY = p.y - camera.y;
-                ctx.fillStyle = p.color;
+                ctx.fillStyle = '#FF0000'; // Always red for enemy projectiles
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2);
                 ctx.fill();
@@ -2037,7 +2039,7 @@
 
         function activateUltimate() {
             ultimateActive = true;
-            ultimateDuration = 3; // Wicked mode now lasts 3 seconds
+            ultimateDuration = 2; // Wicked mode now lasts 2 seconds
             player.color = '#ff6600'; 
             ultimateCharge = 0;
             playSound('ultimateActivate');
@@ -2225,7 +2227,7 @@
                     const distance = dist(player, enemy);
                     // Modified condition to include 'fast' and 'drone' enemies for shooting
                     if ((enemy.type === 'gunner' || enemy.type === 'fast' || enemy.type === 'drone' || enemy.type === 'enemyDrone') && distance < enemy.attackRange) {
-                        angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        angle = Math.atan2(player.y - enemy.y, player.x - player.x);
                         enemy.shootTimer += effectiveDt; 
                         if (enemy.shootTimer >= 1 / enemy.attackSpeed) {
                             // Determine if it's a bazooka shot
@@ -2238,7 +2240,7 @@
                                 vy: Math.sin(angle) * enemy.projectileSpeed,
                                 size: isBazooka ? 15 : enemy.projectileSize, // Larger for bazooka
                                 damage: isBazooka ? enemy.projectileDamage * 2 : enemy.projectileDamage, // More damage for bazooka
-                                color: isBazooka ? '#FF4500' : enemy.projectileColor, // Orange for bazooka
+                                color: '#FF0000', // Always red for enemy projectiles
                                 hits: 0,
                                 isAoE: isBazooka, // New property for AoE
                                 aoeRadius: isBazooka ? 70 : 0, // AoE radius for bazooka
@@ -2455,12 +2457,13 @@
                             playSound('enemyHit'); 
                             lastEnemyHitSoundTime = survivalTime;
                         }
-                        if (closestEnemy.health <= 0) {
-                            gainXp(closestEnemy.xp);
-                            score += 10;
-                            spawnParticles(closestEnemy.x, closestEnemy.y, closestEnemy.color); // Spawn particles on death
-                            enemies = enemies.filter(e => e !== closestEnemy); // Remove defeated enemy
-                        }
+                        // Removed direct enemy removal here, relying on the end-of-frame filter
+                        // if (closestEnemy.health <= 0) {
+                        //     gainXp(closestEnemy.xp);
+                        //     score += 10;
+                        //     spawnParticles(closestEnemy.x, closestEnemy.y, closestEnemy.color); // Spawn particles on death
+                        //     enemies = enemies.filter(e => e !== closestEnemy); // Remove defeated enemy
+                        // }
                     }
                 } else {
                     // If no enemies, dog follows player
@@ -2598,6 +2601,7 @@
                         if (enemy.type === 'robotDrone') {
                             explodeRobotDrone(enemy);
                             enemies.splice(j, 1); // Remove drone after explosion
+                            j--; // Decrement j because the array length changed
                             projectileRemoved = true; // Remove projectile too
                             break;
                         }
@@ -2613,17 +2617,6 @@
                         }
                         p.hits++;
         
-                        if (enemy.health <= 0) {
-                            gainXp(enemy.xp);
-                            score += 10;
-                            spawnParticles(enemy.x, enemy.y, enemy.color); // Spawn particles on death
-                            // Powerups (XP coins) still drop from enemies
-                            if (Math.random() < 0.1) {
-                                spawnPowerup(enemy.x, enemy.y);
-                            }
-                            enemies = enemies.filter(e => e !== closestEnemy); // Remove defeated enemy
-                        }
-
                         if (p.hits > p.pierce) {
                             projectiles.splice(i, 1);
                             projectileRemoved = true;
@@ -2662,11 +2655,6 @@
                                     playSound('enemyHit');
                                     lastEnemyHitSoundTime = survivalTime;
                                 }
-                                if (otherEnemy.health <= 0) {
-                                    gainXp(otherEnemy.xp);
-                                    score += 10;
-                                    spawnParticles(otherEnemy.x, otherEnemy.y, otherEnemy.color);
-                                }
                             }
                         });
                         playSound('explosion'); // Play explosion sound for AoE hit
@@ -2690,12 +2678,6 @@
                             lastEnemyHitSoundTime = survivalTime;
                         }
                         knife.hitEnemies.add(enemy); // Mark enemy as hit by this knife in this cycle
-
-                        if (enemy.health <= 0) {
-                            gainXp(enemy.xp);
-                            score += 10;
-                            spawnParticles(enemy.x, enemy.y, enemy.color); // Spawn particles on death
-                        }
                     }
                 });
                 // Reset hit enemies for the next update cycle
@@ -2715,12 +2697,6 @@
                             lastEnemyHitSoundTime = survivalTime;
                         }
                         b.hitEnemies.add(enemy); // Mark enemy as hit by this boomerang
-
-                        if (enemy.health <= 0) {
-                            gainXp(enemy.xp);
-                            score += 10;
-                            spawnParticles(enemy.x, enemy.y, enemy.color);
-                        }
                     }
                 });
             });
@@ -2735,11 +2711,6 @@
                                 if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
                                     playSound('enemyHit'); 
                                     lastEnemyHitSoundTime = survivalTime;
-                                }
-                                if (targetEnemy.health <= 0) {
-                                    gainXp(targetEnemy.xp);
-                                    score += 10;
-                                    spawnParticles(targetEnemy.x, targetEnemy.y, targetEnemy.color); // Spawn particles on death
                                 }
                             }
                         }
@@ -2763,7 +2734,20 @@
                 }
             }
         
-            enemies = enemies.filter(enemy => enemy.health > 0);
+            // This line now correctly filters out all enemies with health <= 0
+            enemies = enemies.filter(enemy => {
+                if (enemy.health <= 0) {
+                    gainXp(enemy.xp);
+                    score += 10;
+                    spawnParticles(enemy.x, enemy.y, enemy.color);
+                    // Powerups (XP coins) still drop from enemies
+                    if (Math.random() < 0.1) {
+                        spawnPowerup(enemy.x, enemy.y);
+                    }
+                    return false; // Remove this enemy
+                }
+                return true; // Keep this enemy
+            });
         }
         
         function spawnEnemy() {
@@ -2906,7 +2890,7 @@
             const base = {
                 size: 25, speed: 30, health: 50, damage: 10, xp: 10,
                 // Default projectile stats for shooting enemies
-                projectileSize: 8, projectileDamage: 15, projectileSpeed: 100, projectileColor: '#FF4500', attackRange: 250, attackSpeed: 0.8
+                projectileSize: 8, projectileDamage: 15, projectileSpeed: 100, projectileColor: '#FF0000', attackRange: 250, attackSpeed: 0.8
             };
         
             switch (type) {
@@ -2930,7 +2914,7 @@
                     break;
                 case 'drone':
                     base.size = 15; base.speed = 40; base.health = 20; base.xp = 12; base.color = '#888888';
-                    base.attackRange = 150; base.attackSpeed = 2.5; base.projectileSpeed = 125; base.projectileSize = 5; base.projectileColor = '#00FFFF';
+                    base.attackRange = 150; base.attackSpeed = 2.5; base.projectileSpeed = 125; base.projectileSize = 5; base.projectileColor = '#FF0000'; // Enemy projectiles are red
                     break;
                 case 'car':
                     base.size = 50; base.speed = 70; base.health = 300; base.damage = 25 * 0.8; base.xp = 75; base.color = '#663300'; // Reduced damage by 20%
@@ -2948,7 +2932,7 @@
                     break;
                 case 'enemyDrone':
                     base.size = 15; base.speed = 45; base.health = 25; base.damage = 0; base.xp = 15; base.color = '#4682B4'; // SteelBlue
-                    base.attackRange = 200; base.attackSpeed = 1.5; base.projectileSpeed = 110; base.projectileSize = 6; base.projectileColor = '#ADD8E6'; // LightBlue
+                    base.attackRange = 200; base.attackSpeed = 1.5; base.projectileSpeed = 110; base.projectileSize = 6; base.projectileColor = '#FF0000'; // Enemy projectiles are red
                     break;
                 case 'cobra':
                     base.size = 25; base.speed = 40; base.health = 70; base.damage = 15; base.xp = 25; base.color = '#228B22'; // ForestGreen
@@ -3050,11 +3034,6 @@
                     if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
                         playSound('enemyHit');
                         lastEnemyHitSoundTime = survivalTime;
-                    }
-                    if (otherEnemy.health <= 0) {
-                        gainXp(otherEnemy.xp);
-                        score += 10;
-                        spawnParticles(otherEnemy.x, otherEnemy.y, otherEnemy.color);
                     }
                 }
             });
@@ -3174,21 +3153,28 @@
         
         function gainXp(amount) {
             player.xp += amount;
+            // Check for level up immediately upon gaining XP
+            while (player.xp >= player.nextLevelXp) {
+                levelUpQueue.push(true); // Add a level-up event to the queue
+                player.xp -= player.nextLevelXp; // Deduct XP for the current level
+                player.nextLevelXp = Math.floor(player.nextLevelXp * 1.5); // Adjusted XP scaling: 1.5x (was 1.8x)
+                player.maxHealth += 10;
+                player.health = Math.min(player.health + 10, player.maxHealth);
+                player.level++;
+                playSound('levelUp');
+            }
+            // If there are pending level-ups and the game is running (not already showing power selection), show it
+            if (levelUpQueue.length > 0 && gameRunning && messageBox.style.display !== 'block') { // Changed to !== 'block'
+                showPowerSelection();
+            }
         }
         
         function levelUp() {
-            while (player.xp >= player.nextLevelXp) { // Keep leveling up as long as XP is sufficient
-                player.level++;
-                player.xp -= player.nextLevelXp; // Deduct only the XP for the current level
-                player.nextLevelXp = Math.floor(player.nextLevelXp * 1.8); // Increase next level XP
-                player.maxHealth += 10;
-                player.health = Math.min(player.health + 10, player.maxHealth);
-                playSound('levelUp');
-                // Show power selection for EACH level gained
-                showPowerSelection(); 
-                // The game loop will pause here until a power-up is selected
-                // The selectPower function will then resume the game loop
-                return; // Exit after showing one power selection, so the loop can continue only after selection
+            // This function is now primarily a trigger for the power selection UI
+            // The actual level increment and XP deduction happen in gainXp
+            if (levelUpQueue.length > 0) {
+                levelUpQueue.shift(); // Remove one level-up from the queue
+                showPowerSelection();
             }
         }
         
@@ -3205,23 +3191,31 @@
             const existingUpgrades = availablePowers.filter(p => player.upgrades[p.id] > 0);
             const newUpgrades = availablePowers.filter(p => player.upgrades[p.id] === 0);
 
+            // Prioritize offering existing upgrades first (up to 2)
             for (let i = 0; i < Math.min(2, existingUpgrades.length); i++) {
                 const randomIndex = Math.floor(Math.random() * existingUpgrades.length);
                 selectedPowers.push(existingUpgrades[randomIndex]);
                 existingUpgrades.splice(randomIndex, 1);
             }
 
+            // Fill remaining slots with new upgrades if available
             while(selectedPowers.length < 3 && newUpgrades.length > 0) {
                 const randomIndex = Math.floor(Math.random() * newUpgrades.length);
                 selectedPowers.push(newUpgrades[randomIndex]);
                 newUpgrades.splice(randomIndex, 1);
             }
             
+            // If still less than 3, fill with any remaining available powers (including existing upgrades not yet picked)
             while(selectedPowers.length < 3 && availablePowers.length > 0) {
                 const randomIndex = Math.floor(Math.random() * availablePowers.length);
-                selectedPowers.push(availablePowers[randomIndex]);
-                availablePowers.splice(randomIndex, 1);
+                const power = availablePowers[randomIndex];
+                // Ensure we don't add duplicates if it was already selected
+                if (!selectedPowers.includes(power)) {
+                    selectedPowers.push(power);
+                }
+                availablePowers.splice(randomIndex, 1); // Remove from available to prevent re-picking
             }
+
 
             selectedPowers.forEach(power => {
                 const card = document.createElement('div');
@@ -3240,10 +3234,16 @@
             player.upgrades[power.id]++;
             messageBox.style.display = 'none';
             isPaused = false; // Unpause game after selection
-            gameRunning = true;
-            if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Resume music if not muted
-            lastTime = performance.now(); 
-            requestAnimationFrame(gameLoop); // Request next frame to continue game loop
+            
+            // Check if there are more level-ups pending
+            if (levelUpQueue.length > 0) {
+                levelUp(); // Process the next level-up immediately
+            } else {
+                gameRunning = true;
+                if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Resume music if not muted
+                lastTime = performance.now(); 
+                requestAnimationFrame(gameLoop); // Request next frame to continue game loop
+            }
         }
 
         function resetGame() {
@@ -3261,6 +3261,7 @@
             drones = []; // Reset drones
             boomerangs = []; // Reset boomerangs
             convertedEnemies = []; // Clear converted enemies
+            levelUpQueue = []; // Clear level up queue
             
             survivalTime = 0;
             shootTimer = 0;
@@ -3361,7 +3362,8 @@
                 knife.y = player.y + Math.sin(knife.angle) * knife.radius;
             });
 
-            if (player.xp >= player.nextLevelXp) {
+            // Check for level up after all XP is gained and processed
+            if (levelUpQueue.length > 0 && messageBox.style.display !== 'block') { // Changed to !== 'block'
                 levelUp();
             }
 
@@ -3757,6 +3759,7 @@
             drones = []; // Clear drones
             boomerangs = []; // Clear boomerangs
             convertedEnemies = []; // Clear converted enemies
+            levelUpQueue = []; // Clear level up queue
             shootTimer = 0;
             spawnTimer = 0;
             ultimateActive = false;
