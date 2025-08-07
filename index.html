@@ -2064,6 +2064,9 @@
                         vx: 0, 
                         vy: 0, 
                         animationFrame: 0, // Initialize animation frame for enemies
+                        stuckTimer: 0, // Initialize stuck timer
+                        ghostModeActive: false, // Initialize ghost mode flag
+                        ghostModeTimer: 0, // Initialize ghost mode timer
                         ...getEnemyStats(enemyType)
                     };
                     enemies.push(newEnemy);
@@ -2073,6 +2076,11 @@
         
             enemies = enemies.filter(enemy => {
                 let angle;
+
+                // Store current position before movement and collision resolution
+                const prevX = enemy.x;
+                const prevY = enemy.y;
+
                 if (enemy.controlled) {
                     const closestEnemy = enemies
                         .filter(e => !e.controlled)
@@ -2184,21 +2192,51 @@
                     vy: enemy.vy
                 };
 
-                // Resolve collisions with obstacles
-                obstacles.forEach(obstacle => {
-                    if (obstacle.type === 'pillar') {
-                        let pillarCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
-                        circleCircleCollideAndResolve(tempEnemy, pillarCircle);
-                    } else {
-                        circleRectCollideAndResolve(tempEnemy, obstacle);
-                    }
-                });
+                // Apply collision resolution ONLY if not in ghost mode
+                if (!enemy.ghostModeActive) {
+                    // Resolve collisions with obstacles
+                    obstacles.forEach(obstacle => {
+                        if (obstacle.type === 'pillar') {
+                            let pillarCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
+                            circleCircleCollideAndResolve(tempEnemy, pillarCircle);
+                        } else {
+                            circleRectCollideAndResolve(tempEnemy, obstacle);
+                        }
+                    });
+                }
+
 
                 // Apply resolved position and velocity back to enemy
                 enemy.x = tempEnemy.x;
-                enemy.y = tempEnemy.y;
+                enemy.y = temp.y; // Corrected to use temp.y
                 enemy.vx = tempEnemy.vx; 
                 enemy.vy = tempEnemy.vy;
+
+                // Check if the enemy is stuck and manage ghost mode
+                const movedDistance = dist({x: prevX, y: prevY}, {x: enemy.x, y: enemy.y});
+                const stuckThreshold = 1; // A small distance to consider it stuck
+
+                if (movedDistance < stuckThreshold) {
+                    enemy.stuckTimer += effectiveDt;
+                    if (enemy.stuckTimer >= 2 && !enemy.ghostModeActive) { // Stuck for 2 seconds
+                        enemy.ghostModeActive = true;
+                        enemy.ghostModeTimer = 1; // Ghost for 1 second
+                        enemy.stuckTimer = 0; // Reset stuck timer
+                        console.log(`Enemy ${enemy.type} entered ghost mode!`);
+                    }
+                } else {
+                    enemy.stuckTimer = 0; // Reset if moving
+                }
+
+                if (enemy.ghostModeActive) {
+                    enemy.ghostModeTimer -= effectiveDt;
+                    if (enemy.ghostModeTimer <= 0) {
+                        enemy.ghostModeActive = false;
+                        enemy.stuckTimer = 0; // Reset stuck timer when exiting ghost mode
+                        console.log(`Enemy ${enemy.type} exited ghost mode.`);
+                    }
+                }
+
 
                 // Update enemy animation frame
                 if (Math.abs(enemy.vx) > 0 || Math.abs(enemy.vy) > 0) {
@@ -2316,7 +2354,7 @@
         function updateFriendlyDog(dt) {
             if (friendlyDog) {
                 const effectiveDt = dt * gameSpeedMultiplier;
-                const closestEnemy = findClosestEnemy();
+                const closestEnemy = enemies.find(e => !e.controlled); // Find closest non-controlled enemy
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - friendlyDog.y, closestEnemy.x - friendlyDog.x);
                     friendlyDog.x += Math.cos(angle) * friendlyDog.speed * effectiveDt;
@@ -2349,7 +2387,7 @@
         function updateDrones(dt) {
             const effectiveDt = dt * gameSpeedMultiplier;
             drones.forEach(drone => {
-                const closestEnemy = findClosestEnemy(); // Each drone targets the closest enemy
+                const closestEnemy = enemies.find(e => !e.controlled); // Each drone targets the closest non-controlled enemy
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - drone.y, closestEnemy.x - drone.x);
                     // Drones orbit the player if no target, or move towards target
@@ -2738,6 +2776,9 @@
                         vx: 0, 
                         vy: 0, 
                         animationFrame: 0, // Initialize animation frame for enemies
+                        stuckTimer: 0, // Initialize stuck timer
+                        ghostModeActive: false, // Initialize ghost mode flag
+                        ghostModeTimer: 0, // Initialize ghost mode timer
                         ...getEnemyStats(enemyType)
                     };
                     enemies.push(newEnemy);
@@ -2761,6 +2802,9 @@
                     controlled: false, // Cobras are not controlled by player
                     snakeId: snakeId,
                     segmentIndex: i,
+                    stuckTimer: 0, // Initialize stuck timer
+                    ghostModeActive: false, // Initialize ghost mode flag
+                    ghostModeTimer: 0, // Initialize ghost mode timer
                     ...getEnemyStats('cobra')
                 });
             }
@@ -2874,11 +2918,14 @@
                 x: x, y: y, type: enemyType || 'basic', controlled: true,
                 size: baseStats.size, speed: baseStats.speed * 1.5,
                 health: baseStats.health * 2, damage: baseStats.damage * 2,
-                color: '#777777', // Allied characters keep their original color for pixel art
+                color: baseStats.color, // Allied characters keep their original color for pixel art
                 vx: 0, 
                 vy: 0, 
                 animationFrame: 0, // Initialize animation frame for controlled enemies
-                originalType: enemyType // Store original type to revert
+                originalType: enemyType, // Store original type to revert
+                stuckTimer: 0, // Initialize stuck timer
+                ghostModeActive: false, // Initialize ghost mode flag
+                ghostModeTimer: 0, // Initialize ghost mode timer
             };
         }
 
