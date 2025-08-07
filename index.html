@@ -151,7 +151,7 @@
             background: linear-gradient(90deg, #ffcc00, #ff6600);
         }
 
-        #message-box, #game-menu { /* Apply menu styles to message-box and game-menu */
+        #message-box, .menu, #level-select-menu { /* Apply menu styles to message-box, game-menu, and level-select-menu */
             position: absolute;
             top: 50%;
             left: 50%;
@@ -165,6 +165,7 @@
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
             display: none;
             pointer-events: all;
+            z-index: 11; /* Ensure menus are on top */
         }
         
         #power-selection {
@@ -204,31 +205,8 @@
             margin-bottom: 0;
         }
 
-        .menu {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.9);
-            border: 2px solid #ff0000;
-            padding: 40px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
-            z-index: 11; /* Added z-index to ensure menu is on top */
-        }
-        
-        .menu h1 {
-            color: #ff0000;
-            text-shadow: 0 0 10px #ff0000;
-            font-size: 2.5em;
-        }
-        
-        .menu h2 {
-            color: #ff0000;
-        }
-        
-        .menu button, .control-button { /* Combined button styles */
+        /* General menu button styles */
+        .menu button, .control-button, #level-select-menu button { 
             background: linear-gradient(45deg, #ff0000, #990000);
             color: #d1d1d1;
             border: none;
@@ -243,13 +221,13 @@
             white-space: nowrap; /* Prevent text wrapping */
         }
         
-        .menu button:hover, .control-button:hover {
+        .menu button:hover, .control-button:hover, #level-select-menu button:hover {
             transform: translateY(-3px) scale(1.05);
             box-shadow: 0 8px 20px rgba(255, 0, 0, 0.6);
         }
 
         /* Specific styles for the new control buttons */
-        #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton { /* Added resumeFromMenuButton */
+        #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton { 
             padding: 8px 15px; /* Smaller padding for control buttons */
             font-size: 1em; /* Smaller font size */
             margin-top: 0; /* Remove top margin */
@@ -424,6 +402,49 @@
             height: 100%;
             image-rendering: pixelated;
         }
+
+        /* Level Select Menu Styles */
+        .level-card {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid #00ffff;
+            padding: 15px;
+            width: 250px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            text-align: center;
+            pointer-events: all;
+            margin-bottom: 15px; /* Space between cards */
+        }
+
+        .level-card.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        .level-card.locked:hover {
+            transform: none;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        .level-card h3 {
+            margin-top: 0;
+            color: #00ffff;
+            font-size: 1.5em;
+        }
+
+        .level-card p {
+            font-size: 1em;
+            margin-bottom: 5px;
+        }
+
+        .level-card .unlock-info {
+            color: #ffdd00;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -458,6 +479,7 @@
             <p>Click or tap anywhere to move. Your character will fire automatically.</p>
             <p>New: Enemies can now shoot back! Be careful of the gunmen.</p>
             <button id="startButton">Start Game</button>
+            <button id="levelSelectButton">Level Select</button>
         </div>
 
         <div id="game-over-menu" class="menu" style="display: none;">
@@ -478,7 +500,7 @@
             <div id="power-selection"></div>
         </div>
 
-        <!-- New Game Menu -->
+        <!-- Game Menu -->
         <div id="game-menu" class="menu" style="display: none;">
             <h1>Game Menu</h1>
             <button id="muteMusicButton" class="control-button">Mute Music</button>
@@ -491,6 +513,15 @@
             <input type="text" id="playerNameInput" maxlength="15" placeholder="Your Name">
             <button id="saveScoreButton">Save Score</button>
         </div>
+
+        <!-- Level Select Menu -->
+        <div id="level-select-menu" class="menu" style="display: none;">
+            <h1>Select Level</h1>
+            <div id="level-options">
+                <!-- Levels will be dynamically loaded here -->
+            </div>
+            <button id="backToMainMenuButton">Back</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
@@ -498,7 +529,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables (will be initialized in init function)
         window.fb = {};
@@ -515,6 +546,7 @@
             const app = initializeApp(firebaseConfig);
             window.fb.db = getFirestore(app);
             window.fb.auth = getAuth(app);
+            window.fb.appId = appId; // Store appId for later use
 
             // Sign in anonymously if no custom token is provided
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -536,31 +568,38 @@
                 if (user) {
                     window.fb.userId = user.uid;
                     console.log("Firebase user ready:", window.fb.userId);
+                    // Load user's level scores once authenticated
+                    window.loadUserLevelScore('hotel_lobby').then(score => {
+                        window.highestHotelLobbyScore = score;
+                        console.log("Loaded highest Hotel Lobby score:", window.highestHotelLobbyScore);
+                    });
                 } else {
                     console.log("Firebase user not signed in.");
+                    window.fb.userId = null; // Ensure userId is null if not authenticated
                 }
             });
         };
 
-        window.saveHighScoreFirebase = async function(name, score, time, level) {
+        window.saveHighScoreFirebase = async function(name, score, time, level, levelId) {
             if (!window.fb.db || !window.fb.userId) {
                 console.error("Firestore not initialized or user not authenticated.");
                 return;
             }
 
-            const highScoresCollection = collection(window.fb.db, `artifacts/${window.__app_id}/public/data/highScores`);
+            const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
             try {
                 await addDoc(highScoresCollection, {
                     name: name,
                     score: score,
                     survivalTime: time,
                     level: level,
-                    timestamp: Date.now(), // Use server timestamp for consistency
-                    userId: window.fb.userId // Store user ID for potential future features
+                    levelId: levelId, // Save the level ID
+                    timestamp: Date.now(),
+                    userId: window.fb.userId
                 });
-                console.log("High score saved successfully!");
+                console.log("High score saved successfully to public high scores!");
             } catch (e) {
-                console.error("Error adding document: ", e);
+                console.error("Error adding document to public high scores: ", e);
             }
         };
 
@@ -570,7 +609,7 @@
                 return [];
             }
 
-            const highScoresCollection = collection(window.fb.db, `artifacts/${window.__app_id}/public/data/highScores`);
+            const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
             const q = query(highScoresCollection, orderBy("score", "desc"), limit(10));
             
             try {
@@ -579,12 +618,59 @@
                 querySnapshot.forEach((doc) => {
                     highScores.push(doc.data());
                 });
-                    // Sort high scores by score in descending order (already done by Firestore query, but good for client-side consistency)
-                    highScores.sort((a, b) => b.score - a.score);
+                highScores.sort((a, b) => b.score - a.score); // Client-side sort just in case
                 return highScores;
             } catch (e) {
-                console.error("Error getting documents: ", e);
+                console.error("Error getting documents from public high scores: ", e);
                 return [];
+            }
+        };
+
+        window.saveUserLevelScore = async function(levelId, score) {
+            if (!window.fb.db || !window.fb.userId) {
+                console.error("Firestore not initialized or user not authenticated for private data.");
+                return;
+            }
+
+            const userLevelScoreRef = doc(window.fb.db, `artifacts/${window.fb.appId}/users/${window.fb.userId}/levelScores`, levelId);
+            try {
+                const docSnap = await getDoc(userLevelScoreRef);
+                let currentBestScore = 0;
+                if (docSnap.exists()) {
+                    currentBestScore = docSnap.data().highestScore || 0;
+                }
+
+                if (score > currentBestScore) {
+                    await setDoc(userLevelScoreRef, { highestScore: score, timestamp: Date.now() });
+                    console.log(`User's highest score for ${levelId} updated to ${score}.`);
+                    // Update the global variable if it's for hotel lobby
+                    if (levelId === 'hotel_lobby') {
+                        window.highestHotelLobbyScore = score;
+                    }
+                } else {
+                    console.log(`Current score ${score} is not higher than existing best ${currentBestScore} for ${levelId}.`);
+                }
+            } catch (e) {
+                console.error(`Error saving user level score for ${levelId}: `, e);
+            }
+        };
+
+        window.loadUserLevelScore = async function(levelId) {
+            if (!window.fb.db || !window.fb.userId) {
+                console.warn("Firestore not initialized or user not authenticated for private data. Returning 0 for level score.");
+                return 0;
+            }
+
+            const userLevelScoreRef = doc(window.fb.db, `artifacts/${window.fb.appId}/users/${window.fb.userId}/levelScores`, levelId);
+            try {
+                const docSnap = await getDoc(userLevelScoreRef);
+                if (docSnap.exists()) {
+                    return docSnap.data().highestScore || 0;
+                }
+                return 0;
+            } catch (e) {
+                console.error(`Error loading user level score for ${levelId}: `, e);
+                return 0;
             }
         };
     </script>
@@ -604,11 +690,15 @@
         const playerNameInput = document.getElementById('playerNameInput');
         const saveScoreButton = document.getElementById('saveScoreButton');
         const highScoresList = document.getElementById('high-scores-list');
-        const pauseButton = document.getElementById('pauseButton'); // New
-        const menuButton = document.getElementById('menuButton');     // New
-        const gameMenu = document.getElementById('game-menu');       // New
-        const muteMusicButton = document.getElementById('muteMusicButton'); // New
-        const resumeFromMenuButton = document.getElementById('resumeFromMenuButton'); // New
+        const pauseButton = document.getElementById('pauseButton'); 
+        const menuButton = document.getElementById('menuButton');     
+        const gameMenu = document.getElementById('game-menu');       
+        const muteMusicButton = document.getElementById('muteMusicButton'); 
+        const resumeFromMenuButton = document.getElementById('resumeFromMenuButton'); 
+        const levelSelectButton = document.getElementById('levelSelectButton'); // New
+        const levelSelectMenu = document.getElementById('level-select-menu'); // New
+        const levelOptionsDiv = document.getElementById('level-options'); // New
+        const backToMainMenuButton = document.getElementById('backToMainMenuButton'); // New
         
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
@@ -630,31 +720,30 @@
         let ultimateCharge = 0;
         const ultimateMaxCharge = 100;
         let damageNumbers = [];
-        let particles = []; // New array for particles
+        let particles = []; 
         let gameWorld = {
-            width: 3000, // Increased game world width
-            height: 3000 // Increased game world height
+            width: 3000, 
+            height: 3000 
         };
-        let gameSpeedMultiplier = 1; // Global speed multiplier for Bullet Time
-        let playerSpeedModifier = 1; // Multiplier for player speed during bullet time
-        let projectileSpeedModifier = 1; // Multiplier for player projectiles during bullet time
-        let bulletTimeActive = false;
-        let bulletTimeDuration = 0;
-        let spinningKnives = []; // Array for spinning knives
-        let femaleAlly = null; // New: Female ally character
-        let allyDogs = []; // New: Array for allied dogs
-        let temporaryPowerupActive = false; // Flag for temporary power-ups
-        let temporaryPowerupDuration = 0; // Duration for temporary power-ups
-        let temporaryPowerupType = ''; // Type of active temporary power-up (e.g., 'spreadGun', 'femaleAllyAndDogs')
+        let gameSpeedMultiplier = 1; 
+        let playerSpeedModifier = 1; 
+        let projectileSpeedModifier = 1; 
+        let bulletTimeActive = false; 
+        let bulletTimeDuration = 0; 
+        let spinningKnives = []; 
+        let femaleAlly = null; 
+        let allyDogs = []; 
+        let temporaryPowerupActive = false; 
+        let temporaryPowerupDuration = 0;
+        let temporaryPowerupType = '';
         
-        let randomChestSpawnTimer = 0; // New timer for random chest spawns
-        const RANDOM_CHEST_SPAWN_INTERVAL = 5; // Check for random chest every 5 seconds
-        const RANDOM_CHEST_SPAWN_CHANCE = 0.01; // 1% chance for a chest to spawn
+        let randomChestSpawnTimer = 0; 
+        const RANDOM_CHEST_SPAWN_INTERVAL = 5; 
+        const RANDOM_CHEST_SPAWN_CHANCE = 0.01; 
         
-        let chests = []; // Array for chests
-        let drones = []; // Array for combat drones
-        let boomerangs = []; // Array for boomerangs
-        // Removed convertedEnemies as enemy conversion mechanic is removed
+        let chests = []; 
+        let drones = []; 
+        let boomerangs = []; 
 
         // Camera for a larger game world
         let camera = {
@@ -662,7 +751,7 @@
             y: 0,
             width: 900,
             height: 700,
-            zoom: 0.8 // Slightly zoomed out
+            zoom: 0.8 
         };
 
         // Player object with stats and upgrades
@@ -674,7 +763,7 @@
             targetX: initialPlayerX,
             targetY: initialPlayerY,
             size: 20,
-            color: '#6A808C', // Blue-grey suit color
+            color: '#6A808C', 
             speed: 300, 
             health: 100,
             maxHealth: 100,
@@ -689,27 +778,27 @@
                 multiShot: 1,
                 healthRegen: 0.1,
                 magnet: 50,
-                damageReduction: 0, // Replaced defense
+                damageReduction: 0, 
                 spinningKnivesDamage: 0, 
                 spinningKnivesCount: 0, 
                 burstDamage: 0,
                 burstProjectileCount: 0,
-                droneCount: 0, // New: Number of combat drones
-                droneDamage: 0, // New: Combat drone damage
-                droneAttackSpeed: 0, // New: Combat drone attack speed
-                shotgunPellets: 0, // New: Shotgun pellets
-                shotgunDamage: 0, // New: Shotgun damage
-                shotgunSpread: 0, // New: Shotgun spread
-                dualUziActive: false, // New: Dual Uzi active
-                dualUziFireRate: 0, // New: Dual Uzi fire rate
-                dualUziDamage: 0, // New: Dual Uzi damage
-                boomerangDamage: 0, // New: Boomerang damage
-                boomerangCount: 0, // New: Boomerang count
-                boomerangCooldown: 4, // New: Boomerang cooldown
-                boomerangRange: 150, // New: Boomerang outward travel distance
-                boomerangSpeed: 400, // New: Boomerang speed
-                burstChargeDamage: 0, // New: Burst Charge damage
-                burstChargeProjectileCount: 0, // New: Burst Charge projectile count
+                droneCount: 0, 
+                droneDamage: 0, 
+                droneAttackSpeed: 0, 
+                shotgunPellets: 0, 
+                shotgunDamage: 0, 
+                shotgunSpread: 0, 
+                dualUziActive: false, 
+                dualUziFireRate: 0, 
+                dualUziDamage: 0, 
+                boomerangDamage: 0, 
+                boomerangCount: 0, 
+                boomerangCooldown: 4, 
+                boomerangRange: 150, 
+                boomerangSpeed: 400, 
+                burstChargeDamage: 0, 
+                burstChargeProjectileCount: 0,
             },
             upgrades: {
                 damage: 0,
@@ -720,50 +809,46 @@
                 multiShot: 0,
                 healthRegen: 0,
                 magnet: 0,
-                bulletproofSuit: 0, // Replaced defense
+                bulletproofSuit: 0, 
                 ultimateRecharge: 0,
                 burstShot: 0,
                 spinningKnives: 0, 
-                combatDrone: 0, // New: Combat drone upgrade level
-                shotgun: 0, // New: Shotgun upgrade level
-                dualUzi: 0, // New: Dual Uzi upgrade level
-                boomerang: 0, // New: Boomerang upgrade level
-                burstCharge: 0, // New: Burst Charge upgrade level
+                combatDrone: 0, 
+                shotgun: 0, 
+                dualUzi: 0,
+                boomerang: 0, 
+                burstCharge: 0, 
             },
-            burstChargeCooldown: 5, // Initial cooldown for burst charge
-            burstChargeTimer: 0, // Timer for burst charge
+            burstChargeCooldown: 5, 
+            burstChargeTimer: 0, 
             burstCooldown: 1,
             burstTimer: 0,
-            shotgunTimer: 0, // New: Shotgun timer
-            dualUziTimer: 0, // New: Dual Uzi timer
-            boomerangTimer: 0, // New: Boomerang timer
+            shotgunTimer: 0, 
+            dualUziTimer: 0, 
+            boomerangTimer: 0, 
             lastX: initialPlayerX,
             lastY: initialPlayerY,
             animationFrame: 0,
             isMoving: false,
-            vx: 0, // Added velocity X
-            vy: 0, // Added velocity Y
-            currentShootAngle: 0, // New: Stores the current shooting angle for arm animation
+            vx: 0, 
+            vy: 0, 
+            currentShootAngle: 0, 
         };
-
-        // Input handling
-        const keys = {
-            // 'e' key removed as burst charge is now automatic
-        };
-
-        // Game entities
-        // Enemies, projectiles, etc. are already defined globally.
 
         // Game control states
-        let isPaused = false; // New state variable
-        let isMenuOpen = false; // New state variable
-        let isMusicMuted = false; // New state variable
-        let lastUziSoundTime = 0; // Cooldown for Uzi sound
-        const UZI_SOUND_COOLDOWN = 0.05; // 0.05 seconds cooldown for Uzi sound
-        let levelUpQueue = []; // New: Queue for pending level-ups
+        let isPaused = false; 
+        let isMenuOpen = false; 
+        let isMusicMuted = false; 
+        let lastUziSoundTime = 0; 
+        const UZI_SOUND_COOLDOWN = 0.05; 
+        let levelUpQueue = []; 
+
+        // Level management
+        let currentLevelId = 'hotel_lobby'; // Default starting level
+        let highestHotelLobbyScore = 0; // User's highest score for hotel lobby, loaded from Firebase
 
         // Enemy and power-up configuration
-        const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull']; // Added new enemy types
+        const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull']; 
         const MAX_UPGRADE_LEVEL = 8;
         const POWER_OPTIONS = [
             { id: 'damage', name: 'Increase Damage', description: 'Increases projectile damage.',
@@ -810,7 +895,7 @@
               level: () => player.upgrades.bulletproofSuit,
               effect: () => {
                 player.upgrades.bulletproofSuit++;
-                player.stats.damageReduction = Math.min(0.8, player.upgrades.bulletproofSuit * 0.05); // Max 80% reduction
+                player.stats.damageReduction = Math.min(0.8, player.upgrades.bulletproofSuit * 0.05); 
               },
               next: () => `Reduce damage taken by ${((player.upgrades.bulletproofSuit + 1) * 5).toFixed(0)}%. (Lvl ${player.upgrades.bulletproofSuit + 1}/${MAX_UPGRADE_LEVEL})`,
             },
@@ -820,8 +905,8 @@
                 player.upgrades.burstCharge++;
                 player.stats.burstChargeDamage = 50 + player.upgrades.burstCharge * 25; 
                 player.stats.burstChargeProjectileCount = 5 + player.upgrades.burstCharge * 2;
-                player.burstChargeCooldown = Math.max(1, 5 - player.upgrades.burstCharge * 0.5); // Min 1 second cooldown
-                player.burstChargeTimer = 0; // Reset timer to allow immediate firing if just acquired
+                player.burstChargeCooldown = Math.max(1, 5 - player.upgrades.burstCharge * 0.5); 
+                player.burstChargeTimer = 0; 
               },
               next: () => `Fires ${5 + (player.upgrades.burstCharge + 1) * 2} projectiles in a wide arc. Cooldown: ${(Math.max(1, 5 - (player.upgrades.burstCharge + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.burstCharge + 1}/${MAX_UPGRADE_LEVEL})`,
             },
@@ -860,25 +945,25 @@
               },
               next: () => `Summon ${player.upgrades.combatDrone + 1} combat drone(s). (Lvl ${player.upgrades.combatDrone + 1}/${MAX_UPGRADE_LEVEL})`,
             },
-            { id: 'shotgun', name: 'Shotgun', description: 'Fires a spray of powerful, short-range pellets.', // Updated description
+            { id: 'shotgun', name: 'Shotgun', description: 'Fires a spray of powerful, short-range pellets.', 
               level: () => player.upgrades.shotgun,
               effect: () => {
                 player.upgrades.shotgun++;
                 player.stats.shotgunPellets = 5 + player.upgrades.shotgun * 2;
                 player.stats.shotgunDamage = 15 + player.upgrades.shotgun * 5;
-                player.stats.shotgunSpread = 0.4; // Fixed spread for consistent spray
-                player.shotgunTimer = 0; // Reset timer to allow immediate firing if just acquired
+                player.stats.shotgunSpread = 0.4; 
+                player.shotgunTimer = 0; 
               },
-              next: () => `Fires ${5 + (player.upgrades.shotgun + 1) * 2} pellets with a short range. (Lvl ${player.upgrades.shotgun + 1}/${MAX_UPGRADE_LEVEL})`, // Updated next description
+              next: () => `Fires ${5 + (player.upgrades.shotgun + 1) * 2} pellets with a short range. (Lvl ${player.upgrades.shotgun + 1}/${MAX_UPGRADE_LEVEL})`, 
             },
             { id: 'dualUzi', name: 'Dual Uzis', description: 'Fires two continuous streams of bullets.',
               level: () => player.upgrades.dualUzi,
               effect: () => {
                 player.upgrades.dualUzi++;
                 player.stats.dualUziActive = true;
-                player.stats.dualUziFireRate = 8 + player.upgrades.dualUzi * 4; // Reduced initial fire rate
-                player.stats.dualUziDamage = 2 + player.upgrades.dualUzi * 1.5; // Reduced initial damage
-                player.dualUziTimer = 0; // Reset timer to allow immediate firing if just acquired
+                player.stats.dualUziFireRate = 8 + player.upgrades.dualUzi * 4; 
+                player.stats.dualUziDamage = 2 + player.upgrades.dualUzi * 1.5; 
+                player.dualUziTimer = 0; 
               },
               next: () => `Fires two streams at ${8 + (player.upgrades.dualUzi + 1) * 4} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
             },
@@ -886,9 +971,9 @@
               level: () => player.upgrades.boomerang,
               effect: () => {
                 player.upgrades.boomerang++;
-                player.stats.boomerangCount = 1 + Math.floor(player.upgrades.boomerang / 2); // 1 boomerang per 2 levels, starting at 1
+                player.stats.boomerangCount = 1 + Math.floor(player.upgrades.boomerang / 2); 
                 player.stats.boomerangDamage = 25 + player.upgrades.boomerang * 10;
-                player.stats.boomerangCooldown = Math.max(1, 4 - player.upgrades.boomerang * 0.5); // Min 1 second cooldown
+                player.stats.boomerangCooldown = Math.max(1, 4 - player.upgrades.boomerang * 0.5); 
               },
               next: () => `Launch ${1 + Math.floor((player.upgrades.boomerang + 1) / 2)} boomerangs. Cooldown: ${(Math.max(1, 4 - (player.upgrades.boomerang + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.boomerang + 1}/${MAX_UPGRADE_LEVEL})`,
             }
@@ -896,7 +981,6 @@
         
         let shootTimer = 0;
         let spawnTimer = 0;
-        // Ultimate charge per hit reduced for slower build-up
         let ultimateChargePerHit = 0.5; 
         let lastShotSoundTime = 0;
         let lastEnemyHitSoundTime = 0;
@@ -1087,7 +1171,7 @@
                 envelope: {
                     attack: 2, decay: 1, sustain: 0.8, release: 3
                 },
-                volume: -25.5 // Reduced by an additional 15% (approx 3 dB from -22.5)
+                volume: -25.5 
             }).toDestination();
 
             bassSynth = new Tone.Synth({
@@ -1101,7 +1185,7 @@
                 filterEnvelope: {
                     attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.5, baseFrequency: 200, octaves: 1
                 },
-                volume: -18.5 // Reduced by an additional 15% (approx 3 dB from -15.5)
+                volume: -18.5 
             }).toDestination();
 
             explosionSound = new Tone.MetalSynth({
@@ -1118,11 +1202,11 @@
 
         function updateMusicPatterns(patternIndex) {
             if (backgroundMusicSequence) {
-                backgroundMusicSequence.stop(Tone.now()); // Pass Tone.now()
+                backgroundMusicSequence.stop(Tone.now()); 
                 backgroundMusicSequence.dispose();
             }
             if (bassSequence) {
-                bassSequence.stop(Tone.now()); // Pass Tone.now()
+                bassSequence.stop(Tone.now()); 
                 bassSequence.dispose();
             }
 
@@ -1156,27 +1240,36 @@
             drawObstacles();
             drawProjectiles();
             drawPowerups();
-            drawChests(); // Draw chests
+            drawChests(); 
             drawEnemies();
             drawPlayer();
-            drawSpinningKnives(); // Draw spinning knives
-            drawFemaleAllyAndDogs(); // New: Draw female ally and dogs
-            drawDrones(); // Draw drones
-            drawBoomerangs(); // Draw boomerangs
+            drawSpinningKnives(); 
+            drawFemaleAllyAndDogs(); 
+            drawDrones(); 
+            drawBoomerangs(); 
             if (ultimateActive) {
                 drawUltimateEffect();
             }
             drawDamageNumbers();
-            drawParticles(); // Draw particles
+            drawParticles(); 
 
-            ctx.restore(); // Restore context to original scale for UI
+            ctx.restore(); 
             drawUI();
-            drawMiniMap(); // Draw mini-map last so it's on top of UI
+            drawMiniMap(); 
         }
         
         function drawBackground() {
-            ctx.fillStyle = '#101010';
-            ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); // Draw background scaled
+            let bgColor;
+            if (currentLevelId === 'hotel_lobby') {
+                bgColor = '#101010'; // Dark grey for hotel lobby
+            } else if (currentLevelId === 'the_park') {
+                bgColor = '#225522'; // Green for park
+            } else {
+                bgColor = '#101010'; // Default
+            }
+
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); 
 
             const patternSize = 50;
             ctx.strokeStyle = '#222222';
@@ -1197,11 +1290,11 @@
         function drawObstacles() {
             obstacles.forEach(obstacle => {
                 ctx.fillStyle = obstacle.color;
-                if (obstacle.type === 'pillar') {
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree') { // 'tree' is also circular
                     ctx.beginPath();
                     ctx.arc(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width / 2, 0, Math.PI * 2);
                     ctx.fill();
-                } else if (obstacle.type === 'desk' || obstacle.type === 'chair') {
+                } else if (obstacle.type === 'desk' || obstacle.type === 'chair' || obstacle.type === 'bush' || obstacle.type === 'bench') { // 'bush' and 'bench' are rectangular
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
                 }
             });
@@ -1214,50 +1307,44 @@
 
             if (spriteName === 'player') {
                 // Head
-                ctx.fillStyle = '#c79b69'; // Skin tone
+                ctx.fillStyle = '#c79b69'; 
                 ctx.fillRect(screenX - s/4, screenY - s*1.5, s/2, s/2);
 
                 // Body
-                ctx.fillStyle = player.color; // Use player's dynamic color
+                ctx.fillStyle = player.color; 
                 ctx.fillRect(screenX - s/2, screenY - s, s, s*2);
 
                 // Legs
                 if (isMoving) {
-                    const legOffset = Math.sin(frame * 0.5) * s/4; // Slower, more subtle leg swing
-                    ctx.fillStyle = player.color; // Suit color
-                    ctx.fillRect(screenX - s/4, screenY + s + legOffset, s/4, s); // Left leg
-                    ctx.fillRect(screenX + s/4, screenY + s - legOffset, s/4, s); // Right leg
+                    const legOffset = Math.sin(frame * 0.5) * s/4; 
+                    ctx.fillStyle = player.color; 
+                    ctx.fillRect(screenX - s/4, screenY + s + legOffset, s/4, s); 
+                    ctx.fillRect(screenX + s/4, screenY + s - legOffset, s/4, s); 
                 } else {
-                    ctx.fillStyle = player.color; // Suit color
-                    ctx.fillRect(screenX - s/4, screenY + s, s/4, s); // Left leg
-                    ctx.fillRect(screenX + s/4, screenY + s, s/4, s); // Right leg
+                    ctx.fillStyle = player.color; 
+                    ctx.fillRect(screenX - s/4, screenY + s, s/4, s); 
+                    ctx.fillRect(screenX + s/4, screenY + s, s/4, s); 
                 }
 
                 // Arms - dynamic, facing shoot direction
                 const armLength = s * 0.8;
                 const armWidth = s * 0.3;
-                const shoulderXOffset = s * 0.4; // Horizontal distance from player center to arm pivot
-                const shoulderYOffset = s * 0.5; // Vertical distance from player center to arm pivot (top of body)
+                const shoulderXOffset = s * 0.4; 
+                const shoulderYOffset = s * 0.5; 
 
-                ctx.fillStyle = player.color; // Suit color for arms
+                ctx.fillStyle = player.color; 
 
                 // Left Arm
                 ctx.save();
-                // Translate to the left shoulder pivot point
                 ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
-                // Rotate by the shooting angle
                 ctx.rotate(player.currentShootAngle);
-                // Draw the arm, extending from the pivot point in the direction of the angle
                 ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
                 ctx.restore();
 
                 // Right Arm
                 ctx.save();
-                // Translate to the right shoulder pivot point
                 ctx.translate(screenX + shoulderXOffset, screenY - shoulderYOffset);
-                // Rotate by the shooting angle
                 ctx.rotate(player.currentShootAngle);
-                // Draw the arm, extending from the pivot point in the direction of the angle
                 ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
                 ctx.restore();
 
@@ -1274,35 +1361,35 @@
 
             // Draw glowing green aura for allied characters
             if (enemy.controlled) {
-                ctx.save(); // Save the current state of the canvas
-                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; // Green glow
-                ctx.shadowBlur = 15; // Increased blur for a stronger glow
-                ctx.fillStyle = '#00ff66'; // Always green for aura
+                ctx.save(); 
+                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; 
+                ctx.shadowBlur = 15; 
+                ctx.fillStyle = '#00ff66'; 
                 ctx.beginPath();
-                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); // Slightly larger circle for aura
+                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); 
                 ctx.fill();
-                ctx.restore(); // Restore the canvas state to remove shadow for the enemy itself
+                ctx.restore(); 
             }
 
             if (enemy.type === 'robotDrone') {
-                ctx.fillStyle = enemy.color; // Original color for robot drone
+                ctx.fillStyle = enemy.color; 
                 ctx.beginPath();
-                ctx.arc(screenX, screenY, s / 2, 0, Math.PI * 2); // Body
+                ctx.arc(screenX, screenY, s / 2, 0, Math.PI * 2); 
                 ctx.fill();
-                ctx.fillStyle = '#AAAAAA'; // Lighter grey for details
-                ctx.fillRect(screenX - s * 0.4, screenY - s * 0.1, s * 0.8, s * 0.2); // Horizontal bar
-                ctx.fillRect(screenX - s * 0.1, screenY - s * 0.4, s * 0.2, s * 0.8); // Vertical bar
-                ctx.fillStyle = '#FF0000'; // Red eye
+                ctx.fillStyle = '#AAAAAA'; 
+                ctx.fillRect(screenX - s * 0.4, screenY - s * 0.1, s * 0.8, s * 0.2); 
+                ctx.fillRect(screenX - s * 0.1, screenY - s * 0.4, s * 0.2, s * 0.8); 
+                ctx.fillStyle = '#FF0000'; 
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, s * 0.15, 0, Math.PI * 2);
                 ctx.fill();
             } else if (enemy.type === 'yellowSkull') {
-                ctx.fillStyle = enemy.color; // Yellow for the skull
+                ctx.fillStyle = enemy.color; 
                 ctx.beginPath();
-                ctx.arc(screenX, screenY - s * 0.5, s * 0.4, 0, Math.PI * 2); // Main skull shape
+                ctx.arc(screenX, screenY - s * 0.5, s * 0.4, 0, Math.PI * 2); 
                 ctx.fill();
 
-                ctx.fillStyle = '#000000'; // Black for eye sockets
+                ctx.fillStyle = '#000000'; 
                 ctx.beginPath();
                 ctx.arc(screenX - s * 0.15, screenY - s * 0.6, s * 0.08, 0, Math.PI * 2);
                 ctx.fill();
@@ -1310,33 +1397,33 @@
                 ctx.arc(screenX + s * 0.15, screenY - s * 0.6, s * 0.08, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillRect(screenX - s * 0.1, screenY - s * 0.3, s * 0.2, s * 0.1); // Nose
-                ctx.fillRect(screenX - s * 0.2, screenY - s * 0.1, s * 0.4, s * 0.05); // Mouth line
+                ctx.fillRect(screenX - s * 0.1, screenY - s * 0.3, s * 0.2, s * 0.1); 
+                ctx.fillRect(screenX - s * 0.2, screenY - s * 0.1, s * 0.4, s * 0.05); 
             }
             else {
                 // Head
-                ctx.fillStyle = '#c79b69'; // Skin tone
+                ctx.fillStyle = '#c79b69'; 
                 ctx.fillRect(screenX - s/4, screenY - s*1.5, s/2, s/2);
                 
                 // Body
-                ctx.fillStyle = enemy.color; // Original enemy color
+                ctx.fillStyle = enemy.color; 
                 ctx.fillRect(screenX - s/2, screenY - s, s, s*2);
 
                 // Arms (simplified, similar to player)
-                ctx.fillRect(screenX - s/2 - s/4, screenY - s, s/4, s); // Left arm
-                ctx.fillRect(screenX + s/2, screenY - s, s/4, s); // Right arm
+                ctx.fillRect(screenX - s/2 - s/4, screenY - s, s/4, s); 
+                ctx.fillRect(screenX + s/2, screenY - s, s/4, s); 
                 
                 // Legs (animated, similar to player)
                 const isEnemyMoving = Math.abs(enemy.vx) > 0 || Math.abs(enemy.vy) > 0;
                 if (isEnemyMoving) {
-                    const legOffset = Math.sin(enemy.animationFrame * 0.5) * s/4; // Slower, more subtle leg swing
-                    ctx.fillStyle = enemy.color; // Use enemy color for legs
-                    ctx.fillRect(screenX - s/4, screenY + s + legOffset, s/4, s); // Left leg
-                    ctx.fillRect(screenX + s/4, screenY + s - legOffset, s/4, s); // Right leg
+                    const legOffset = Math.sin(enemy.animationFrame * 0.5) * s/4; 
+                    ctx.fillStyle = enemy.color; 
+                    ctx.fillRect(screenX - s/4, screenY + s + legOffset, s/4, s); 
+                    ctx.fillRect(screenX + s/4, screenY + s - legOffset, s/4, s); 
                 } else {
-                    ctx.fillStyle = enemy.color; // Use enemy color for legs
-                    ctx.fillRect(screenX - s/4, screenY + s, s/4, s); // Left leg
-                    ctx.fillRect(screenX + s/4, screenY + s, s/4, s); // Right leg
+                    ctx.fillStyle = enemy.color; 
+                    ctx.fillRect(screenX - s/4, screenY + s, s/4, s); 
+                    ctx.fillRect(screenX + s/4, screenY + s, s/4, s); 
                 }
 
                 if (enemy.type === 'tank') {
@@ -1352,16 +1439,15 @@
                     ctx.arc(screenX, screenY, s*0.75, 0, Math.PI * 2);
                     ctx.stroke();
                 } else if (enemy.type === 'car') {
-                    ctx.fillStyle = '#663300'; // Brown for car body
+                    ctx.fillStyle = '#663300'; 
                     ctx.fillRect(screenX - s/2, screenY - s/4, s, s/2);
-                    // Removed black spots (wheels) as requested
                 } else if (enemy.type === 'ninja') {
-                    ctx.fillStyle = '#333333'; // Dark grey for ninja suit
+                    ctx.fillStyle = '#333333'; 
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s*1.5);
-                    ctx.fillStyle = '#1a1a1a'; // Mask
+                    ctx.fillStyle = '#1a1a1a'; 
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s/4);
                 } else if (enemy.type === 'enemyDog') {
-                    ctx.fillStyle = enemy.color; // Use enemy color for dog
+                    ctx.fillStyle = enemy.color; 
                     ctx.beginPath();
                     ctx.ellipse(screenX, screenY + s * 0.1, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
                     ctx.fill();
@@ -1369,17 +1455,16 @@
                     ctx.arc(screenX + s * 0.4, screenY - s * 0.2, s * 0.3, 0, Math.PI * 2);
                     ctx.fill();
                 } else if (enemy.type === 'enemyDrone') {
-                    ctx.fillStyle = enemy.color; // Cyan for drone
-                    ctx.fillRect(screenX - s/2, screenY - s/2, s, s); // Body
-                    ctx.fillStyle = '#666666'; // Grey for propeller
-                    ctx.fillRect(screenX - s, screenY - s/8, s*2, s/4); // Horizontal propeller
-                    ctx.fillRect(screenX - s/8, screenY - s, s/4, s*2); // Vertical propeller
+                    ctx.fillStyle = enemy.color; 
+                    ctx.fillRect(screenX - s/2, screenY - s/2, s, s); 
+                    ctx.fillStyle = '#666666'; 
+                    ctx.fillRect(screenX - s, screenY - s/8, s*2, s/4); 
+                    ctx.fillRect(screenX - s/8, screenY - s, s/4, s*2); 
                 } else if (enemy.type === 'cobra') {
                     ctx.fillStyle = enemy.color;
-                    ctx.fillRect(screenX - s/2, screenY - s/2, s, s); // Simple square segment
-                    // Add a small head indicator for the first segment
+                    ctx.fillRect(screenX - s/2, screenY - s/2, s, s); 
                     if (enemy.segmentIndex === 0) {
-                        ctx.fillStyle = '#FFD700'; // Gold for head
+                        ctx.fillStyle = '#FFD700'; 
                         ctx.beginPath();
                         ctx.arc(screenX + s/2, screenY, s/4, 0, Math.PI * 2);
                         ctx.fill();
@@ -1389,11 +1474,11 @@
 
             // Draw "A" above allied characters
             if (enemy.controlled) {
-                ctx.fillStyle = '#00ff66'; // Green color for the 'A'
-                ctx.font = 'bold 16px Chakra Petch'; // Larger, bold font
+                ctx.fillStyle = '#00ff66'; 
+                ctx.font = 'bold 16px Chakra Petch'; 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText('A', screenX, screenY - s * 2); // Position above head
+                ctx.fillText('A', screenX, screenY - s * 2); 
             }
         }
         
@@ -1447,18 +1532,17 @@
             enemyProjectiles.forEach(p => {
                 const screenX = p.x - camera.x;
                 const screenY = p.y - camera.y;
-                ctx.fillStyle = '#FF0000'; // Always red for enemy projectiles
+                ctx.fillStyle = '#FF0000'; 
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Draw AoE indicator for bazooka projectiles
                 if (p.isAoE) {
-                    const opacity = 0.5 * (1 - (p.lifetime / p.maxLifetime)); // Fade out
+                    const opacity = 0.5 * (1 - (p.lifetime / p.maxLifetime)); 
                     ctx.strokeStyle = `rgba(255, 100, 0, ${opacity})`;
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(screenX, screenY, p.aoeRadius * (1 - opacity), 0, Math.PI * 2); // Expand as it fades
+                    ctx.arc(screenX, screenY, p.aoeRadius * (1 - opacity), 0, Math.PI * 2); 
                     ctx.stroke();
                 }
             });
@@ -1468,13 +1552,13 @@
             powerups.forEach(p => {
                 const screenX = p.x - camera.x;
                 const screenY = p.y - camera.y;
-                ctx.fillStyle = '#FFD700'; // Gold color for coins
-                ctx.shadowColor = '#FFA500'; // Orange shadow for glow
-                ctx.shadowBlur = 8; // Slightly reduced blur
+                ctx.fillStyle = '#FFD700'; 
+                ctx.shadowColor = '#FFA500'; 
+                ctx.shadowBlur = 8; 
                 ctx.beginPath();
-                ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2); // Draw a circle
+                ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2); 
                 ctx.fill();
-                ctx.shadowBlur = 0; // Reset shadow blur
+                ctx.shadowBlur = 0; 
             });
         }
 
@@ -1482,9 +1566,9 @@
             chests.forEach(chest => {
                 const screenX = chest.x - camera.x;
                 const screenY = chest.y - camera.y;
-                ctx.fillStyle = '#8B4513'; // Brown for chest
+                ctx.fillStyle = '#8B4513'; 
                 ctx.fillRect(screenX - chest.size / 2, screenY - chest.size / 2, chest.size, chest.size);
-                ctx.fillStyle = '#FFD700'; // Gold for lock
+                ctx.fillStyle = '#FFD700'; 
                 ctx.fillRect(screenX - chest.size / 8, screenY - chest.size / 2, chest.size / 4, chest.size / 4);
             });
         }
@@ -1493,7 +1577,7 @@
             spinningKnives.forEach(knife => {
                 const screenX = knife.x - camera.x;
                 const screenY = knife.y - camera.y;
-                ctx.fillStyle = '#AAAAAA'; // Knife color
+                ctx.fillStyle = '#AAAAAA'; 
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, knife.size, 0, Math.PI * 2);
                 ctx.fill();
@@ -1506,58 +1590,50 @@
                 const screenX = femaleAlly.x - camera.x;
                 const screenY = femaleAlly.y - camera.y;
 
-                // Draw glowing green aura for allied characters
-                ctx.save(); // Save the current state of the canvas
-                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; // Green glow
-                ctx.shadowBlur = 15; // Increased blur for a stronger glow
-                ctx.fillStyle = '#00ff66'; // Always green for aura
+                ctx.save(); 
+                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; 
+                ctx.shadowBlur = 15; 
+                ctx.fillStyle = '#00ff66'; 
                 ctx.beginPath();
-                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); // Slightly larger circle for aura
+                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); 
                 ctx.fill();
-                ctx.restore(); // Restore the canvas state to remove shadow for the character itself
+                ctx.restore(); 
 
                 // Female character pixel art
-                // Head
-                ctx.fillStyle = '#f0c8a0'; // Lighter skin tone for female character
+                ctx.fillStyle = '#f0c8a0'; 
                 ctx.fillRect(screenX - s/4, screenY - s*1.5, s/2, s/2);
 
-                // Hair (simplified)
-                ctx.fillStyle = '#5C4033'; // Brown hair
-                ctx.fillRect(screenX - s/2, screenY - s*1.7, s, s*0.5); // Top hair
-                ctx.fillRect(screenX + s/4, screenY - s*1.5, s/4, s*0.8); // Side hair (ponytail/braid)
+                ctx.fillStyle = '#5C4033'; 
+                ctx.fillRect(screenX - s/2, screenY - s*1.7, s, s*0.5); 
+                ctx.fillRect(screenX + s/4, screenY - s*1.5, s/4, s*0.8); 
 
-                // Body (slimmer)
-                ctx.fillStyle = '#8B0000'; // Red dress/suit
-                ctx.fillRect(screenX - s/3, screenY - s, s*2/3, s*1.8); // Slimmer body
+                ctx.fillStyle = '#8B0000'; 
+                ctx.fillRect(screenX - s/3, screenY - s, s*2/3, s*1.8); 
 
-                // Arms - dynamic, facing shoot direction
                 const armLength = s * 0.6;
                 const armWidth = s * 0.2;
                 const shoulderXOffset = s * 0.3;
                 const shoulderYOffset = s * 0.5;
 
-                ctx.fillStyle = '#8B0000'; // Red for arms
+                ctx.fillStyle = '#8B0000'; 
 
-                // Left Arm
                 ctx.save();
                 ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
                 ctx.rotate(femaleAlly.currentShootAngle);
                 ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
                 ctx.restore();
 
-                // Right Arm
                 ctx.save();
                 ctx.translate(screenX + shoulderXOffset, screenY - shoulderYOffset);
                 ctx.rotate(femaleAlly.currentShootAngle);
                 ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
                 ctx.restore();
 
-                // Draw "A" above allied character
-                ctx.fillStyle = '#00ff66'; // Green color for the 'A'
-                ctx.font = 'bold 16px Chakra Petch'; // Larger, bold font
+                ctx.fillStyle = '#00ff66'; 
+                ctx.font = 'bold 16px Chakra Petch'; 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText('A', screenX, screenY - s * 2); // Position above head
+                ctx.fillText('A', screenX, screenY - s * 2); 
             }
 
             allyDogs.forEach(dog => {
@@ -1565,18 +1641,16 @@
                 const screenX = dog.x - camera.x;
                 const screenY = dog.y - camera.y;
 
-                // Draw glowing green aura for allied characters
-                ctx.save(); // Save the current state of the canvas
-                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; // Green glow
-                ctx.shadowBlur = 15; // Increased blur for a stronger glow
-                ctx.fillStyle = '#00ff66'; // Always green for aura
+                ctx.save(); 
+                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; 
+                ctx.shadowBlur = 15; 
+                ctx.fillStyle = '#00ff66'; 
                 ctx.beginPath();
-                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); // Slightly larger circle for aura
+                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); 
                 ctx.fill();
-                ctx.restore(); // Restore the canvas state to remove shadow for the dog itself
+                ctx.restore(); 
 
-                // Dog pixel art (similar to friendlyDog)
-                ctx.fillStyle = '#8B4513'; // Brown for dog body
+                ctx.fillStyle = '#8B4513'; 
                 ctx.beginPath();
                 ctx.ellipse(screenX, screenY + s * 0.1, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
                 ctx.fill();
@@ -1600,12 +1674,11 @@
                 ctx.fillRect(screenX - s * 0.4, screenY + s * 0.4, s * 0.15, s * 0.3);
                 ctx.fillRect(screenX + s * 0.2, screenY + s * 0.4, s * 0.15, s * 0.3);
 
-                // Draw "A" above allied character
-                ctx.fillStyle = '#00ff66'; // Green color for the 'A'
-                ctx.font = 'bold 16px Chakra Petch'; // Larger, bold font
+                ctx.fillStyle = '#00ff66'; 
+                ctx.font = 'bold 16px Chakra Petch'; 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText('A', screenX, screenY - s * 2); // Position above head
+                ctx.fillText('A', screenX, screenY - s * 2); 
             });
         }
 
@@ -1615,12 +1688,11 @@
                 const screenX = drone.x - camera.x;
                 const screenY = drone.y - camera.y;
 
-                // Simple drone representation (e.g., a small square with a propeller)
-                ctx.fillStyle = '#00FFFF'; // Cyan for drone
-                ctx.fillRect(screenX - s/2, screenY - s/2, s, s); // Body
-                ctx.fillStyle = '#666666'; // Grey for propeller
-                ctx.fillRect(screenX - s, screenY - s/8, s*2, s/4); // Horizontal propeller
-                ctx.fillRect(screenX - s/8, screenY - s, s/4, s*2); // Vertical propeller
+                ctx.fillStyle = '#00FFFF'; 
+                ctx.fillRect(screenX - s/2, screenY - s/2, s, s); 
+                ctx.fillStyle = '#666666'; 
+                ctx.fillRect(screenX - s, screenY - s/8, s*2, s/4); 
+                ctx.fillRect(screenX - s/8, screenY - s, s/4, s*2); 
             });
         }
 
@@ -1631,27 +1703,23 @@
                 
                 ctx.save();
                 ctx.translate(screenX, screenY);
-                // Rotate to face direction of movement, adding a slight offset for banana curve
                 ctx.rotate(Math.atan2(b.vy, b.vx) + Math.PI / 8); 
                 
-                ctx.fillStyle = b.color; // Yellow for boomerang
-                const bananaWidth = b.size * 0.6; // Thicker part
-                const bananaLength = b.size * 2; // Overall length
+                ctx.fillStyle = b.color; 
+                const bananaWidth = b.size * 0.6; 
+                const bananaLength = b.size * 2; 
 
                 ctx.beginPath();
-                // Start at one end of the banana
                 ctx.moveTo(0, -bananaWidth / 2);
-                // Curve to the other end
                 ctx.bezierCurveTo(
-                    bananaLength * 0.5, -bananaWidth * 1.5, // Control point 1 (outward curve)
-                    bananaLength * 0.5, bananaWidth * 1.5,  // Control point 2 (inward curve)
-                    0, bananaWidth / 2                      // End point
+                    bananaLength * 0.5, -bananaWidth * 1.5, 
+                    bananaLength * 0.5, bananaWidth * 1.5,  
+                    0, bananaWidth / 2                      
                 );
-                // Close the shape to form the other side of the banana
                 ctx.bezierCurveTo(
-                    -bananaLength * 0.5, bananaWidth * 1.5, // Control point 3
-                    -bananaLength * 0.5, -bananaWidth * 1.5, // Control point 4
-                    0, -bananaWidth / 2                     // Back to start
+                    -bananaLength * 0.5, bananaWidth * 1.5, 
+                    -bananaLength * 0.5, -bananaWidth * 1.5, 
+                    0, -bananaWidth / 2                     
                 );
                 ctx.closePath();
                 ctx.fill();
@@ -1666,14 +1734,12 @@
             const screenX = player.x - camera.x;
             const screenY = player.y - camera.y;
             ctx.arc(screenX, screenY, pulseSize * 2, 0, Math.PI * 2);
-            // Updated to use ultimateDuration/3 for correct fade
-            ctx.strokeStyle = `rgba(255, 102, 0, ${0.5 * (ultimateDuration/3)})`; // Fade in/out
+            ctx.strokeStyle = `rgba(255, 102, 0, ${0.5 * (ultimateDuration/3)})`; 
             ctx.lineWidth = 10;
             ctx.stroke();
 
-            // Updated to use ultimateDuration/3 for correct fade
-            ctx.fillStyle = `rgba(255, 102, 0, ${0.1 * (ultimateDuration/3)})`; // Fade in/out
-            ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); // Fill background scaled
+            ctx.fillStyle = `rgba(255, 102, 0, ${0.1 * (ultimateDuration/3)})`; 
+            ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); 
         }
 
         function drawUI() {
@@ -1691,7 +1757,6 @@
                 ultimateButton.classList.remove('ready');
             }
 
-            // Update mute music button text
             muteMusicButton.textContent = isMusicMuted ? 'Unmute Music' : 'Mute Music';
         }
         
@@ -1715,17 +1780,14 @@
             });
         }
 
-        // New function to draw particles
         function drawParticles(x, y, colorInput) {
             let r, g, b;
 
-            // Check if colorInput is an object (like {r: 255, g: 100, b: 0})
             if (typeof colorInput === 'object' && colorInput !== null) {
                 r = colorInput.r;
                 g = colorInput.g;
                 b = colorInput.b;
             } else if (typeof colorInput === 'string') {
-                // Parse enemy color string (e.g., '#777777') to RGB
                 if (colorInput.startsWith('#')) {
                     const hex = colorInput.substring(1);
                     r = parseInt(hex.substring(0, 2), 16);
@@ -1740,22 +1802,21 @@
                     }
                 }
             } else {
-                // Default to white if colorInput is neither a string nor a valid object
                 r = 255; g = 255; b = 255;
             }
 
-            const numParticles = 10 + Math.floor(Math.random() * 5); // More particles
+            const numParticles = 10 + Math.floor(Math.random() * 5); 
             for (let i = 0; i < numParticles; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 50 + Math.random() * 50; // Slower initial speed
+                const speed = 50 + Math.random() * 50; 
                 particles.push({
                     x: x,
                     y: y,
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
-                    size: 2 + Math.random() * 3, // Smaller particles
+                    size: 2 + Math.random() * 3, 
                     alpha: 1,
-                    color: { r: r, g: g, b: b } // Use the parsed/provided RGB color
+                    color: { r: r, g: g, b: b } 
                 });
             }
         }
@@ -1763,16 +1824,14 @@
         function drawMiniMap() {
             miniMapCtx.clearRect(0, 0, miniMapCanvas.width, miniMapCanvas.height);
 
-            // Draw mini-map background
             miniMapCtx.fillStyle = '#1a1a1a';
             miniMapCtx.fillRect(0, 0, miniMapCanvas.width, miniMapCanvas.height);
 
-            // Draw obstacles on mini-map
-            miniMapCtx.fillStyle = '#444444'; // Darker grey for obstacles
+            miniMapCtx.fillStyle = '#444444'; 
             obstacles.forEach(obstacle => {
                 const miniX = obstacle.x * miniMapScale;
                 const miniY = obstacle.y * miniMapScale;
-                if (obstacle.type === 'pillar') {
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree') {
                     miniMapCtx.beginPath();
                     miniMapCtx.arc(miniX, miniY, obstacle.width / 2 * miniMapScale, 0, Math.PI * 2);
                     miniMapCtx.fill();
@@ -1781,47 +1840,89 @@
                 }
             });
 
-            // Draw enemies on mini-map
+            miniMapCtx.fillStyle = '#ff0000'; 
             enemies.forEach(enemy => {
                 const miniX = enemy.x * miniMapScale;
                 const miniY = enemy.y * miniMapScale;
-                miniMapCtx.fillStyle = enemy.controlled ? '#00ff66' : '#ff0000'; // Green for allied, red for hostile
+                miniMapCtx.fillStyle = enemy.controlled ? '#00ff66' : '#ff0000'; 
                 miniMapCtx.beginPath();
                 miniMapCtx.arc(miniX, miniY, enemy.size / 2 * miniMapScale, 0, Math.PI * 2);
                 miniMapCtx.fill();
             });
 
-            // Draw player on mini-map
             const miniPlayerX = player.x * miniMapScale;
             const miniPlayerY = player.y * miniMapScale;
-            miniMapCtx.fillStyle = '#00ffff'; // Cyan for player
+            miniMapCtx.fillStyle = '#00ffff'; 
             miniMapCtx.beginPath();
             miniMapCtx.arc(miniPlayerX, miniPlayerY, player.size / 2 * miniMapScale, 0, Math.PI * 2);
             miniMapCtx.fill();
 
-            // Draw chests on mini-map
             chests.forEach(chest => {
                 const miniX = chest.x * miniMapScale;
                 const miniY = chest.y * miniMapScale;
-                miniMapCtx.fillStyle = '#FFD700'; // Gold for chests
+                miniMapCtx.fillStyle = '#FFD700'; 
                 miniMapCtx.fillRect(miniX - chest.size / 2 * miniMapScale, miniY - chest.size / 2 * miniMapScale, chest.size * miniMapScale, chest.size * miniMapScale);
             });
         }
 
-        function drawStartMenu() {
+        function showStartMenu() {
             startMenu.style.display = 'block';
             gameOverMenu.style.display = 'none';
-            gameMenu.style.display = 'none'; // Ensure game menu is hidden
+            gameMenu.style.display = 'none'; 
+            levelSelectMenu.style.display = 'none'; // Ensure level select is hidden
         }
         
-        function drawGameOverMenu() {
+        function showGameOverMenu() {
             startMenu.style.display = 'none';
             gameOverMenu.style.display = 'block';
-            gameMenu.style.display = 'none'; // Ensure game menu is hidden
+            gameMenu.style.display = 'none'; 
+            levelSelectMenu.style.display = 'none'; // Ensure level select is hidden
+        }
+
+        function showLevelSelectMenu() {
+            startMenu.style.display = 'none';
+            gameOverMenu.style.display = 'none';
+            gameMenu.style.display = 'none';
+            messageBox.style.display = 'none';
+            levelSelectMenu.style.display = 'block';
+            populateLevelOptions();
+        }
+
+        function populateLevelOptions() {
+            levelOptionsDiv.innerHTML = ''; // Clear existing options
+
+            const levels = [
+                { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
+                { id: 'the_park', name: 'The Park', unlockScore: 6000, description: 'A green oasis, full of danger.' }
+            ];
+
+            levels.forEach(level => {
+                const card = document.createElement('div');
+                card.className = 'level-card';
+                card.innerHTML = `<h3>${level.name}</h3><p>${level.description}</p>`;
+
+                let isLocked = false;
+                if (level.id === 'the_park' && highestHotelLobbyScore < level.unlockScore) {
+                    isLocked = true;
+                    card.classList.add('locked');
+                    const unlockInfo = document.createElement('p');
+                    unlockInfo.className = 'unlock-info';
+                    unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Hotel Lobby (Your Best: ${highestHotelLobbyScore})`;
+                    card.appendChild(unlockInfo);
+                }
+
+                if (!isLocked) {
+                    card.addEventListener('click', () => {
+                        currentLevelId = level.id;
+                        startGame();
+                    });
+                }
+                levelOptionsDiv.appendChild(card);
+            });
         }
         
         function updatePlayer(dt) {
-            const effectiveDt = dt * gameSpeedMultiplier; // Apply game speed multiplier
+            const effectiveDt = dt * gameSpeedMultiplier; 
 
             const dx = player.targetX - player.x;
             const dy = player.targetY - player.y;
@@ -1830,20 +1931,17 @@
             player.isMoving = distance > 5;
             if (player.isMoving) {
                 const angle = Math.atan2(dy, dx);
-                // Apply playerSpeedModifier if ultimate is active
                 const currentSpeed = player.speed * (ultimateActive ? playerSpeedModifier : 1);
                 player.vx = Math.cos(angle) * currentSpeed;
                 player.vy = Math.sin(angle) * currentSpeed;
             } else {
-                player.vx = 0; // Reset velocity if not actively moving
-                player.vy = 0; // Reset velocity if not actively moving
+                player.vx = 0; 
+                player.vy = 0; 
             }
 
-            // Calculate potential new position
             let newX = player.x + player.vx * effectiveDt;
             let newY = player.y + player.vy * effectiveDt;
 
-            // Create a temporary object for collision checking and resolution
             let tempPlayer = {
                 x: newX,
                 y: newY,
@@ -1852,32 +1950,27 @@
                 vy: player.vy
             };
             
-            // Resolve collisions with obstacles
             obstacles.forEach(obstacle => {
-                if (obstacle.type === 'pillar') {
-                    // Pillar is treated as a circle for collision
-                    let pillarCircle = {
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree') {
+                    let obstacleCircle = {
                         x: obstacle.x,
                         y: obstacle.y,
-                        size: obstacle.width // obstacle.width is its diameter
+                        size: obstacle.width 
                     };
-                    circleCircleCollideAndResolve(tempPlayer, pillarCircle);
-                } else { // desk or chair (rectangle)
+                    circleCircleCollideAndResolve(tempPlayer, obstacleCircle);
+                } else { 
                     circleRectCollideAndResolve(tempPlayer, obstacle);
                 }
             });
 
-            // Apply resolved position and velocity back to player
             player.x = tempPlayer.x;
             player.y = tempPlayer.y;
             player.vx = tempPlayer.vx; 
             player.vy = tempPlayer.vy;
 
-            // Boundary checks (applied after collision resolution)
             player.x = Math.max(0, Math.min(gameWorld.width, player.x));
             player.y = Math.max(0, Math.min(gameWorld.height, player.y));
             
-            // Animation frame update
             if (player.isMoving) {
                 player.animationFrame = (player.animationFrame + effectiveDt * 10) % 4;
             } else {
@@ -1887,14 +1980,13 @@
             player.health += player.stats.healthRegen * effectiveDt;
             player.health = Math.min(player.health + player.stats.healthRegen * effectiveDt, player.maxHealth);
         
-            // Burst Charge (formerly Circular Wave) - now automatic
             if (player.upgrades.burstCharge > 0 && player.burstChargeTimer <= 0) {
                 const closestEnemy = findClosestEnemy();
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                    player.currentShootAngle = angle; // Update shoot angle for arms
+                    player.currentShootAngle = angle; 
                     const numProjectiles = player.stats.burstChargeProjectileCount;
-                    const arcSpread = 0.8; // Radians, about 45 degrees
+                    const arcSpread = 0.8; 
                     const angleStep = arcSpread / (numProjectiles > 1 ? (numProjectiles - 1) : 1);
                     const startAngle = angle - arcSpread / 2;
 
@@ -1903,17 +1995,17 @@
                         projectiles.push({
                             x: player.x,
                             y: player.y,
-                            vx: Math.cos(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), // 50% slower
-                            vy: Math.sin(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), // 50% slower
-                            size: 5, // Slightly larger projectile for visual distinction
+                            vx: Math.cos(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), 
+                            vy: Math.sin(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), 
+                            size: 5, 
                             damage: ultimateActive ? player.stats.burstChargeDamage * 3 : player.stats.burstChargeDamage,
-                            color: ultimateActive ? '#ff9933' : '#00ffff', // Orange-ish for ultimate, Cyan for normal
+                            color: ultimateActive ? '#ff9933' : '#00ffff', 
                             pierce: ultimateActive ? player.stats.pierce + 1 : player.stats.pierce,
                             hits: 0
                         });
                     }
                     player.burstChargeTimer = player.burstChargeCooldown;
-                    playSound('playerShot'); // Re-use player shot sound
+                    playSound('playerShot'); 
                 }
             }
         
@@ -1922,17 +2014,16 @@
                 
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                    player.currentShootAngle = angle; // Update shoot angle for arms
+                    player.currentShootAngle = angle; 
                     
                     let currentMultiShot = player.stats.multiShot;
                     let currentProjectileSpeed = player.stats.projectileSpeed;
                     let currentDamage = player.stats.damage;
 
-                    // Apply temporary spread gun effect
                     if (temporaryPowerupType === 'spreadGun') {
-                        currentMultiShot = 5; // Fixed spread for temporary spread gun
-                        currentProjectileSpeed = 300; // Slightly slower projectiles for spread
-                        currentDamage = player.stats.damage * 0.75; // Slightly reduced damage per projectile
+                        currentMultiShot = 5; 
+                        currentProjectileSpeed = 300; 
+                        currentDamage = player.stats.damage * 0.75; 
                     }
 
                     for (let i = 0; i < currentMultiShot; i++) {
@@ -1963,7 +2054,7 @@
             if (player.stats.burstDamage > 0 && player.burstTimer >= player.burstCooldown) {
                 const closestEnemy = findClosestEnemy();
                 if (closestEnemy) {
-                    player.currentShootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x); // Update shoot angle for arms
+                    player.currentShootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x); 
                 }
                 const numProjectiles = player.stats.burstProjectileCount;
                 const angleStep = (Math.PI * 2) / numProjectiles;
@@ -1988,39 +2079,37 @@
                 }
             }
 
-            // Shotgun firing logic
             if (player.upgrades.shotgun > 0) {
                 player.shotgunTimer += effectiveDt;
-                const shotgunCooldown = 0.8 / (1 + player.upgrades.shotgun * 0.1); // Faster with levels
+                const shotgunCooldown = 0.8 / (1 + player.upgrades.shotgun * 0.1); 
                 if (player.shotgunTimer >= shotgunCooldown) {
                     const closestEnemy = findClosestEnemy();
-                    if (closestEnemy && dist(player, closestEnemy) < 200) { // Shotgun short range
+                    if (closestEnemy && dist(player, closestEnemy) < 200) { 
                         const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                        player.currentShootAngle = angle; // Update shoot angle for arms
+                        player.currentShootAngle = angle; 
                         for (let i = 0; i < player.stats.shotgunPellets; i++) {
                             const spread = (i - (player.stats.shotgunPellets - 1) / 2) * player.stats.shotgunSpread;
                             const projectileAngle = angle + spread;
                             projectiles.push({
                                 x: player.x,
                                 y: player.y,
-                                vx: Math.cos(projectileAngle) * 300, // Fixed shotgun pellet speed
+                                vx: Math.cos(projectileAngle) * 300, 
                                 vy: Math.sin(projectileAngle) * 300,
                                 size: 5,
                                 damage: player.stats.shotgunDamage,
-                                color: '#FFA500', // Orange for shotgun pellets
-                                pierce: 0, // Shotgun pellets don't pierce
+                                color: '#FFA500', 
+                                pierce: 0, 
                                 hits: 0,
-                                lifetime: 0.3, // Short lifetime for quick falloff
-                                maxLifetime: 0.3 // For tracking remaining lifetime
+                                lifetime: 0.3, 
+                                maxLifetime: 0.3 
                             });
                         }
-                        playSound('playerShot'); // Re-use player shot sound for now
+                        playSound('playerShot'); 
                         player.shotgunTimer = 0;
                     }
                 }
             }
 
-            // Dual Uzi firing logic
             if (player.stats.dualUziActive) {
                 player.dualUziTimer += effectiveDt;
                 const uziCooldown = 1 / player.stats.dualUziFireRate;
@@ -2028,10 +2117,9 @@
                     const closestEnemy = findClosestEnemy();
                     if (closestEnemy) {
                         const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                        player.currentShootAngle = angle; // Update shoot angle for arms
-                        const offset = 10; // Offset for dual barrels
+                        player.currentShootAngle = angle; 
+                        const offset = 10; 
                         
-                        // Left Uzi
                         projectiles.push({
                             x: player.x + Math.cos(angle - Math.PI/2) * offset,
                             y: player.y + Math.sin(angle - Math.PI/2) * offset,
@@ -2039,11 +2127,10 @@
                             vy: Math.sin(angle) * 600,
                             size: 2,
                             damage: player.stats.dualUziDamage,
-                            color: '#00FF00', // Green for Uzi bullets
+                            color: '#00FF00', 
                             pierce: 0,
                             hits: 0
                         });
-                        // Right Uzi
                         projectiles.push({
                             x: player.x + Math.cos(angle + Math.PI/2) * offset,
                             y: player.y + Math.sin(angle + Math.PI/2) * offset,
@@ -2051,11 +2138,10 @@
                             vy: Math.sin(angle) * 600,
                             size: 2,
                             damage: player.stats.dualUziDamage,
-                            color: '#00FF00', // Green for Uzi bullets
+                            color: '#00FF00', 
                             pierce: 0,
                             hits: 0
                         });
-                        // Play Uzi sound with cooldown
                         if (survivalTime - lastUziSoundTime >= UZI_SOUND_COOLDOWN) {
                             playSound('playerShot'); 
                             lastUziSoundTime = survivalTime;
@@ -2065,29 +2151,28 @@
                 }
             }
 
-            // Boomerang firing logic
             if (player.stats.boomerangCount > 0) {
                 player.boomerangTimer += effectiveDt;
                 if (player.boomerangTimer >= player.stats.boomerangCooldown) {
-                    const closestEnemy = findClosestEnemy(); // Find enemy for arm direction
+                    const closestEnemy = findClosestEnemy(); 
                     if (closestEnemy) {
-                        player.currentShootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x); // Update shoot angle for arms
+                        player.currentShootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x); 
                     }
                     const numBoomerangs = player.stats.boomerangCount;
                     const angleStep = (Math.PI * 2) / numBoomerangs; 
                     for (let i = 0; i < numBoomerangs; i++) {
-                        const initialAngle = Math.random() * Math.PI * 2; // Random initial direction
+                        const initialAngle = Math.random() * Math.PI * 2; 
                         boomerangs.push({
                             x: player.x,
                             y: player.y,
                             vx: Math.cos(initialAngle) * player.stats.boomerangSpeed,
                             vy: Math.sin(initialAngle) * player.stats.boomerangSpeed,
-                            size: 15, // Slightly larger size for boomerang
+                            size: 15, 
                             damage: player.stats.boomerangDamage,
-                            color: '#FFFF00', // Yellow for boomerang
+                            color: '#FFFF00', 
                             distanceTraveled: 0,
                             returning: false,
-                            hitEnemies: new Set(), // To prevent hitting same enemy multiple times per launch
+                            hitEnemies: new Set(), 
                             maxOutwardDistance: player.stats.boomerangRange,
                             speed: player.stats.boomerangSpeed
                         });
@@ -2113,31 +2198,27 @@
 
         function activateUltimate() {
             ultimateActive = true;
-            ultimateDuration = 1.5; // Wicked mode now lasts 1.5 seconds (reduced from 2)
+            ultimateDuration = 1.5; 
             player.color = '#ff6600'; 
             ultimateCharge = 0;
             playSound('ultimateActivate');
 
-            // Activate Bullet Time effect
-            gameSpeedMultiplier = 0.25; // Everything else moves at 25% speed
-            playerSpeedModifier = 3; // Player and player projectiles move at 75% speed (0.25 * 3 = 0.75)
+            gameSpeedMultiplier = 0.25; 
+            playerSpeedModifier = 3; 
             projectileSpeedModifier = 3;
-            if (!isMusicMuted) Tone.Transport.playbackRate = 0.5; // Slow down music only if not muted
+            if (!isMusicMuted) Tone.Transport.playbackRate = 0.5; 
         }
         
         function updateEnemies(dt) {
-            const effectiveDt = dt * gameSpeedMultiplier; // Apply game speed multiplier
+            const effectiveDt = dt * gameSpeedMultiplier; 
 
-            // Faster enemy appearance
             const minSpawnInterval = 0.05; 
             const maxSpawnInterval = 0.8; 
-            // Adjusted spawn rate factor for smoother difficulty build-up (max at 10 mins)
             const spawnRateFactor = Math.min(1, survivalTime / 600); 
             let spawnInterval = maxSpawnInterval - (maxSpawnInterval - minSpawnInterval) * spawnRateFactor;
 
-            // Increase spawn rate significantly for the first minute
             if (survivalTime < 60) {
-                spawnInterval *= 0.33; // Reduce interval by 67% to increase spawn rate by 3x (1 / 3 = 0.33)
+                spawnInterval *= 0.33; 
             }
 
             if (spawnTimer >= spawnInterval) {
@@ -2145,19 +2226,19 @@
                 let x, y;
             
                 switch (side) {
-                    case 0: // Top
+                    case 0: 
                         x = Math.random() * gameWorld.width;
                         y = Math.max(0, camera.y - 50);
                         break;
-                    case 1: // Right
+                    case 1: 
                         x = Math.min(gameWorld.width, camera.x + camera.width / camera.zoom + 50);
                         y = Math.random() * gameWorld.height;
                         break;
-                    case 2: // Bottom
+                    case 2: 
                         x = Math.random() * gameWorld.width;
                         y = Math.min(gameWorld.height, camera.y + camera.height / camera.zoom + 50);
                         break;
-                    case 3: // Left
+                    case 3: 
                         x = Math.max(0, camera.x - 50);
                         y = Math.random() * gameWorld.height;
                         break;
@@ -2166,50 +2247,50 @@
                 let enemyType = 'basic';
                 const timeInMinutes = survivalTime / 60;
 
-                if (timeInMinutes < 0.5) { // First 30 seconds: basic, enemyDog, enemyDrone, robotDrone
+                if (timeInMinutes < 0.5) { 
                     const rand = Math.random();
                     if (rand < 0.5) enemyType = 'basic';
                     else if (rand < 0.7) enemyType = 'enemyDog';
                     else if (rand < 0.85) enemyType = 'enemyDrone';
-                    else enemyType = 'robotDrone'; // New: Robot Drone
-                } else if (timeInMinutes < 2) { // First 2 minutes: mostly basic, some tanks, drones, dogs, robotDrones
+                    else enemyType = 'robotDrone'; 
+                } else if (timeInMinutes < 2) { 
                     const rand = Math.random();
                     if (rand < 0.4) enemyType = 'basic';
                     else if (rand < 0.6) enemyType = 'tank';
                     else if (rand < 0.75) enemyType = 'enemyDog';
                     else if (rand < 0.85) enemyType = 'enemyDrone';
-                    else enemyType = 'robotDrone'; // New: Robot Drone
-                } else if (timeInMinutes < 5) { // From 2 to 5 minutes: still basic and tank, but more variety in distribution, introduce cobra, more robotDrones
+                    else enemyType = 'robotDrone'; 
+                } else if (timeInMinutes < 5) { 
                     const rand = Math.random();
-                    if (rand < 0.5) enemyType = 'basic'; // Still high chance of basic
-                    else if (rand < 0.7) enemyType = 'tank'; // Increased chance of tank
-                    else if (rand < 0.8) enemyType = 'car'; // Small chance of car (non-shooter)
-                    else if (rand < 0.9) enemyType = 'cobra'; // Introduce cobra
-                    else enemyType = 'robotDrone'; // Increased chance of Robot Drone
-                } else if (timeInMinutes < 8) { // From 5 to 8 minutes: introduce shooters, all types
+                    if (rand < 0.5) enemyType = 'basic'; 
+                    else if (rand < 0.7) enemyType = 'tank'; 
+                    else if (rand < 0.8) enemyType = 'car'; 
+                    else if (rand < 0.9) enemyType = 'cobra';
+                    else enemyType = 'robotDrone'; 
+                } else if (timeInMinutes < 8) { 
                     const rand = Math.random();
                     if (rand < 0.1) enemyType = 'basic';
-                    else if (rand < 0.25) enemyType = 'fast'; // Shooter
-                    else if (rand < 0.4) enemyType = 'gunner'; // Shooter
+                    else if (rand < 0.25) enemyType = 'fast'; 
+                    else if (rand < 0.4) enemyType = 'gunner'; 
                     else if (rand < 0.55) enemyType = 'tank';
-                    else if (rand < 0.65) enemyType = 'drone'; // Shooter
+                    else if (rand < 0.65) enemyType = 'drone'; 
                     else if (rand < 0.75) enemyType = 'car';
                     else if (rand < 0.85) enemyType = 'elite';
                     else if (rand < 0.95) enemyType = 'cobra';
-                    else enemyType = 'robotDrone'; // Still present
-                } else { // After 8 minutes: all enemy types, including ninjas, and robotDrones, and yellowSkull
+                    else enemyType = 'robotDrone'; 
+                } else { 
                     const rand = Math.random();
                     if (rand < 0.05) enemyType = 'basic';
-                    else if (rand < 0.15) enemyType = 'fast'; // Shooter
-                    else if (rand < 0.25) enemyType = 'gunner'; // Shooter
+                    else if (rand < 0.15) enemyType = 'fast'; 
+                    else if (rand < 0.25) enemyType = 'gunner'; 
                     else if (rand < 0.35) enemyType = 'tank';
-                    else if (rand < 0.45) enemyType = 'drone'; // Shooter
+                    else if (rand < 0.45) enemyType = 'drone'; 
                     else if (rand < 0.55) enemyType = 'car';
                     else if (rand < 0.65) enemyType = 'elite';
-                    else if (rand < 0.75) enemyType = 'ninja'; // Melee, but high level
+                    else if (rand < 0.75) enemyType = 'ninja'; 
                     else if (rand < 0.85) enemyType = 'cobra';
-                    else if (rand < 0.95) enemyType = 'robotDrone'; // Still present
-                    else enemyType = 'yellowSkull'; // New: Yellow Skull
+                    else if (rand < 0.95) enemyType = 'robotDrone'; 
+                    else enemyType = 'yellowSkull'; 
                 }
 
                 if (enemyType === 'cobra') {
@@ -2224,12 +2305,12 @@
                         flankAngle: (Math.random() - 0.5) * Math.PI / 4,
                         vx: 0, 
                         vy: 0, 
-                        animationFrame: 0, // Initialize animation frame for enemies
-                        stuckTimer: 0, // Initialize stuck timer
-                        ghostModeActive: false, // Initialize ghost mode flag
-                        ghostModeTimer: 0, // Initialize ghost mode timer
-                        lastX: x, // For stuck detection
-                        lastY: y, // For stuck detection
+                        animationFrame: 0, 
+                        stuckTimer: 0, 
+                        ghostModeActive: false, 
+                        ghostModeTimer: 0, 
+                        lastX: x, 
+                        lastY: y, 
                         ...getEnemyStats(enemyType)
                     };
                     enemies.push(newEnemy);
@@ -2240,7 +2321,6 @@
             enemies = enemies.filter(enemy => {
                 let angle;
 
-                // Store current position before movement and collision resolution
                 const prevX = enemy.x;
                 const prevY = enemy.y;
 
@@ -2253,24 +2333,21 @@
                     } else {
                         enemy.vx = 0;
                         enemy.vy = 0;
-                        // Controlled enemy stays on screen if no targets
                         return enemy.x > -100 && enemy.x < gameWorld.width + 100 &&
                                enemy.y > -100 && enemy.y < gameWorld.height + 100;
                     }
                 } else if (enemy.type === 'cobra') {
-                    // Cobra segment movement
-                    if (enemy.segmentIndex === 0) { // Head segment
+                    if (enemy.segmentIndex === 0) { 
                         angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-                        // Cobras move primarily horizontally
                         enemy.vx = Math.cos(angle) * enemy.speed;
-                        enemy.vy = Math.sin(angle) * enemy.speed; // Allow vertical movement for head
-                    } else { // Body segments follow previous segment
+                        enemy.vy = Math.sin(angle) * enemy.speed; 
+                    } else { 
                         const prevSegment = enemies.find(e => e.snakeId === enemy.snakeId && e.segmentIndex === enemy.segmentIndex - 1);
                         if (prevSegment) {
                             const dx = prevSegment.x - enemy.x;
                             const dy = prevSegment.y - enemy.y;
                             const segmentDistance = Math.sqrt(dx*dx + dy*dy);
-                            const minSegmentDistance = enemy.size * 1.2; // Keep segments slightly spaced
+                            const minSegmentDistance = enemy.size * 1.2; 
                             
                             if (segmentDistance > minSegmentDistance) {
                                 angle = Math.atan2(dy, dx);
@@ -2281,49 +2358,43 @@
                                 enemy.vy = 0;
                             }
                         } else {
-                            // If previous segment is gone, this segment becomes a new head or despawns
-                            // For simplicity, if previous is gone, this segment stops for now.
                             enemy.vx = 0;
                             enemy.vy = 0;
                         }
                     }
                 } else if (enemy.type === 'robotDrone') {
-                    // Robot drones move directly to player
                     angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
                     enemy.vx = Math.cos(angle) * enemy.speed;
                     enemy.vy = Math.sin(angle) * enemy.speed;
-                    // If close enough, explode
-                    if (dist(player, enemy) < (player.size / 2 + enemy.size / 2 + 10)) { // Add a small buffer
+                    if (dist(player, enemy) < (player.size / 2 + enemy.size / 2 + 10)) { 
                         explodeRobotDrone(enemy);
-                        return false; // Remove drone
+                        return false; 
                     }
                 } else { 
                     const distance = dist(player, enemy);
-                    // Modified condition to include 'fast' and 'drone' enemies for shooting
                     if ((enemy.type === 'gunner' || enemy.type === 'fast' || enemy.type === 'drone' || enemy.type === 'enemyDrone') && distance < enemy.attackRange) {
                         angle = Math.atan2(player.y - enemy.y, player.x - player.x);
                         enemy.shootTimer += effectiveDt; 
                         if (enemy.shootTimer >= 1 / enemy.attackSpeed) {
-                            // Determine if it's a bazooka shot
-                            const isBazooka = survivalTime > 300 || player.level > 5; // Example condition for bazooka upgrade
+                            const isBazooka = survivalTime > 300 || player.level > 5; 
                             
                             enemyProjectiles.push({
                                 x: enemy.x,
                                 y: enemy.y,
                                 vx: Math.cos(angle) * enemy.projectileSpeed,
                                 vy: Math.sin(angle) * enemy.projectileSpeed,
-                                size: isBazooka ? 15 : enemy.projectileSize, // Larger for bazooka
-                                damage: isBazooka ? enemy.projectileDamage * 2 : enemy.projectileDamage, // More damage for bazooka
-                                color: '#FF0000', // Always red for enemy projectiles
+                                size: isBazooka ? 15 : enemy.projectileSize, 
+                                damage: isBazooka ? enemy.projectileDamage * 2 : enemy.projectileDamage, 
+                                color: '#FF0000', 
                                 hits: 0,
-                                isAoE: isBazooka, // New property for AoE
-                                aoeRadius: isBazooka ? 70 : 0, // AoE radius for bazooka
-                                lifetime: isBazooka ? 1 : 0, // For fading AoE indicator
-                                maxLifetime: isBazooka ? 1 : 0 // For fading AoE indicator
+                                isAoE: isBazooka, 
+                                aoeRadius: isBazooka ? 70 : 0, 
+                                lifetime: isBazooka ? 1 : 0, 
+                                maxLifetime: isBazooka ? 1 : 0 
                             });
                             enemy.shootTimer = 0;
                         }
-                        enemy.vx = 0; // Shooter enemy stops when attacking
+                        enemy.vx = 0; 
                         enemy.vy = 0;
                         return enemy.x > -100 && enemy.x < gameWorld.width + 100 &&
                                enemy.y > -100 && enemy.y < gameWorld.height + 100;
@@ -2339,14 +2410,12 @@
                     }
                 }
 
-                // Calculate enemy's desired velocity
-                if (enemy.type !== 'cobra' || enemy.segmentIndex === 0) { // Only apply to non-cobra or cobra head
+                if (enemy.type !== 'cobra' || enemy.segmentIndex === 0) { 
                     enemy.vx = Math.cos(angle) * enemy.speed;
                     enemy.vy = Math.sin(angle) * enemy.speed;
                 }
                 
 
-                // Create a temporary object for collision checking and resolution
                 let tempEnemy = {
                     x: enemy.x + enemy.vx * effectiveDt, 
                     y: enemy.y + enemy.vy * effectiveDt, 
@@ -2355,13 +2424,11 @@
                     vy: enemy.vy
                 };
 
-                // Apply collision resolution ONLY if not in ghost mode
                 if (!enemy.ghostModeActive) {
-                    // Resolve collisions with obstacles
                     obstacles.forEach(obstacle => {
-                        if (obstacle.type === 'pillar') {
-                            let pillarCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
-                            circleCircleCollideAndResolve(tempEnemy, pillarCircle);
+                        if (obstacle.type === 'pillar' || obstacle.type === 'tree') {
+                            let obstacleCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
+                            circleCircleCollideAndResolve(tempEnemy, obstacleCircle);
                         } else {
                             circleRectCollideAndResolve(tempEnemy, obstacle);
                         }
@@ -2369,75 +2436,68 @@
                 }
 
 
-                // Apply resolved position and velocity back to enemy
                 enemy.x = tempEnemy.x;
                 enemy.y = tempEnemy.y;
                 enemy.vx = tempEnemy.vx; 
                 enemy.vy = tempEnemy.vy;
 
-                // Check if the enemy is stuck and manage ghost mode
                 const movedDistance = dist({x: prevX, y: prevY}, {x: enemy.x, y: enemy.y});
-                const stuckThreshold = 1; // A small distance to consider it stuck
+                const stuckThreshold = 1; 
 
                 if (movedDistance < stuckThreshold) {
                     enemy.stuckTimer += effectiveDt;
-                    if (enemy.stuckTimer >= 2 && !enemy.ghostModeActive) { // Stuck for 2 seconds
+                    if (enemy.stuckTimer >= 2 && !enemy.ghostModeActive) { 
                         enemy.ghostModeActive = true;
-                        enemy.ghostModeTimer = 1; // Ghost for 1 second
-                        enemy.stuckTimer = 0; // Reset stuck timer
+                        enemy.ghostModeTimer = 1; 
+                        enemy.stuckTimer = 0; 
                         console.log(`Enemy ${enemy.type} entered ghost mode!`);
                     }
                 } else {
-                    enemy.stuckTimer = 0; // Reset if moving
+                    enemy.stuckTimer = 0; 
                 }
 
                 if (enemy.ghostModeActive) {
                     enemy.ghostModeTimer -= effectiveDt;
                     if (enemy.ghostModeTimer <= 0) {
                         enemy.ghostModeActive = false;
-                        enemy.stuckTimer = 0; // Reset stuck timer when exiting ghost mode
+                        enemy.stuckTimer = 0; 
                         console.log(`Enemy ${enemy.type} exited ghost mode.`);
                     }
                 }
 
-
-                // Update enemy animation frame
                 if (Math.abs(enemy.vx) > 0 || Math.abs(enemy.vy) > 0) {
                     enemy.animationFrame = (enemy.animationFrame + effectiveDt * 10) % 4;
                 } else {
                     enemy.animationFrame = 0;
                 }
 
-                // Boundary checks for enemies
-                enemy.x = Math.max(-100, Math.min(gameWorld.width + 100, enemy.x)); // Increased boundary for enemies
+                enemy.x = Math.max(-100, Math.min(gameWorld.width + 100, enemy.x)); 
                 enemy.y = Math.max(-100, Math.min(gameWorld.height + 100, enemy.y));
         
-                return enemy.x > -150 && enemy.x < gameWorld.width + 150 && // Filter out further off-screen
+                return enemy.x > -150 && enemy.x < gameWorld.width + 150 && 
                        enemy.y > -150 && enemy.y < gameWorld.height + 150;
             });
 
-            // After filtering, re-index cobra segments if any were removed
             const cobraIds = new Set(enemies.filter(e => e.type === 'cobra').map(e => e.snakeId));
             cobraIds.forEach(id => {
                 let segments = enemies.filter(e => e.snakeId === id).sort((a, b) => a.segmentIndex - b.segmentIndex);
                 segments.forEach((segment, index) => {
-                    segment.segmentIndex = index; // Re-assign indices
+                    segment.segmentIndex = index; 
                 });
             });
         }
         
         function updateProjectiles(dt) {
-            const effectiveDt = dt * gameSpeedMultiplier; // Apply game speed multiplier
+            const effectiveDt = dt * gameSpeedMultiplier; 
             projectiles = projectiles.filter(p => {
                 p.x += p.vx * effectiveDt; 
                 p.y += p.vy * effectiveDt; 
 
-                // New: Decrease lifetime for shotgun projectiles
                 if (p.lifetime !== undefined) {
                     p.lifetime -= effectiveDt;
                 }
                 
-                return p.x > -100 && p.x < gameWorld.width + 100 && p.y > -100 && p.y < gameWorld.height + 100 && p.hits <= p.pierce && (p.lifetime === undefined || p.lifetime > 0); // Check lifetime
+                return p.x > -100 && p.x < gameWorld.width + 100 && p.y > -100 && p.y < gameWorld.height + 100 && p.hits <= p.pierce && (p.lifetime === undefined || p.lifetime > 0); 
             });
 
             enemyProjectiles = enemyProjectiles.filter(p => {
@@ -2453,7 +2513,7 @@
         }
         
         function updatePowerups(dt) {
-            const effectiveDt = dt * gameSpeedMultiplier; // Apply game speed multiplier
+            const effectiveDt = dt * gameSpeedMultiplier; 
             powerups = powerups.filter(p => {
                 const distance = dist(player, p);
                 if (distance < player.stats.magnet) {
@@ -2467,13 +2527,12 @@
 
         function updateChests(dt) {
             chests = chests.filter(chest => {
-                // Chests don't move, just check collision
                 return true;
             });
         }
         
         function updateDamageNumbers(dt) {
-            const effectiveDt = dt * gameSpeedMultiplier; // Apply game speed multiplier
+            const effectiveDt = dt * gameSpeedMultiplier; 
             damageNumbers = damageNumbers.filter(d => {
                 d.y -= 20 * effectiveDt; 
                 d.lifetime -= effectiveDt; 
@@ -2481,64 +2540,58 @@
             });
         }
 
-        // New function to update particles
         function updateParticles(dt) {
             particles = particles.filter(p => {
                 p.x += p.vx * dt;
                 p.y += p.vy * dt;
-                p.alpha -= dt * 2; // Fade out over 0.5 seconds
-                p.size -= dt * 5; // Shrink over time
+                p.alpha -= dt * 2; 
+                p.size -= dt * 5; 
                 return p.alpha > 0 && p.size > 0;
             });
         }
 
-        // New function to update spinning knives position and properties
         function updateSpinningKnivesEffect() {
-            // Clear existing knives and recreate based on upgrade level
             spinningKnives = [];
             const numKnives = player.stats.spinningKnivesCount;
-            const radius = player.size * 2; // Orbit radius
+            const radius = player.size * 2; 
             const knifeSize = 5;
             const knifeDamage = player.stats.spinningKnivesDamage;
-            const rotationSpeed = 5; // How fast they orbit
+            const rotationSpeed = 5; 
 
             for (let i = 0; i < numKnives; i++) {
                 spinningKnives.push({
-                    angle: (Math.PI * 2 / numKnives) * i, // Initial angle
+                    angle: (Math.PI * 2 / numKnives) * i, 
                     radius: radius,
                     size: knifeSize,
                     damage: knifeDamage,
                     rotationSpeed: rotationSpeed,
-                    hitEnemies: new Set() // Track enemies hit per cycle
+                    hitEnemies: new Set() 
                 });
             }
         }
 
-        // New function to update female ally and dogs
         function updateFemaleAllyAndDogs(dt) {
             if (femaleAlly) {
                 const effectiveDt = dt * gameSpeedMultiplier;
-                const closestEnemy = enemies.find(e => !e.controlled); // Target closest hostile enemy
+                const closestEnemy = enemies.find(e => !e.controlled); 
 
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - femaleAlly.y, closestEnemy.x - femaleAlly.x);
-                    femaleAlly.currentShootAngle = angle; // Update shoot angle for arms
+                    femaleAlly.currentShootAngle = angle; 
 
-                    // Female ally moves towards the enemy, but tries to keep a distance
                     const distanceToEnemy = dist(femaleAlly, closestEnemy);
-                    const desiredDistance = 150; // Keep 150 units away from enemy
+                    const desiredDistance = 150; 
                     if (distanceToEnemy > desiredDistance) {
                         femaleAlly.x += Math.cos(angle) * femaleAlly.speed * effectiveDt;
                         femaleAlly.y += Math.sin(angle) * femaleAlly.speed * effectiveDt;
-                    } else if (distanceToEnemy < desiredDistance * 0.8) { // If too close, move away
+                    } else if (distanceToEnemy < desiredDistance * 0.8) { 
                         femaleAlly.x -= Math.cos(angle) * femaleAlly.speed * effectiveDt;
                         femaleAlly.y -= Math.sin(angle) * femaleAlly.speed * effectiveDt;
                     }
 
-                    // Female ally shooting logic (twin pistols)
                     femaleAlly.shootTimer += effectiveDt;
                     if (femaleAlly.shootTimer >= 1 / femaleAlly.attackSpeed) {
-                        const offset = 5; // Offset for twin pistols
+                        const offset = 5; 
                         projectiles.push({
                             x: femaleAlly.x + Math.cos(angle - Math.PI/2) * offset,
                             y: femaleAlly.y + Math.sin(angle - Math.PI/2) * offset,
@@ -2546,7 +2599,7 @@
                             vy: Math.sin(angle) * femaleAlly.projectileSpeed,
                             size: femaleAlly.projectileSize,
                             damage: femaleAlly.damage,
-                            color: '#FFC0CB', // Pink for female ally bullets
+                            color: '#FFC0CB', 
                             pierce: femaleAlly.pierce,
                             hits: 0
                         });
@@ -2557,15 +2610,14 @@
                             vy: Math.sin(angle) * femaleAlly.projectileSpeed,
                             size: femaleAlly.projectileSize,
                             damage: femaleAlly.damage,
-                            color: '#FFC0CB', // Pink for female ally bullets
+                            color: '#FFC0CB', 
                             pierce: femaleAlly.pierce,
                             hits: 0
                         });
-                        playSound('playerShot'); // Re-use player shot sound
+                        playSound('playerShot'); 
                         femaleAlly.shootTimer = 0;
                     }
                 } else {
-                    // If no enemies, female ally follows player
                     const angle = Math.atan2(player.y - femaleAlly.y, player.x - femaleAlly.x);
                     femaleAlly.x += Math.cos(angle) * femaleAlly.speed * effectiveDt;
                     femaleAlly.y += Math.sin(angle) * femaleAlly.speed * effectiveDt;
@@ -2574,14 +2626,13 @@
 
             allyDogs.forEach(dog => {
                 const effectiveDt = dt * gameSpeedMultiplier;
-                const closestEnemy = enemies.find(e => !e.controlled); // Target closest hostile enemy
+                const closestEnemy = enemies.find(e => !e.controlled); 
 
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - dog.y, closestEnemy.x - dog.x);
                     dog.x += Math.cos(angle) * dog.speed * effectiveDt;
                     dog.y += Math.sin(angle) * dog.speed * effectiveDt;
 
-                    // Dog attacks enemies on collision with cooldown
                     if (dist(dog, closestEnemy) < (dog.size / 2 + closestEnemy.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
                         closestEnemy.health -= dog.damage;
                         showDamageNumber(dog.damage, closestEnemy.x, closestEnemy.y);
@@ -2589,10 +2640,9 @@
                             playSound('enemyHit');
                             lastEnemyHitSoundTime = survivalTime;
                         }
-                        dog.lastAttackTime = survivalTime; // Update last attack time
+                        dog.lastAttackTime = survivalTime; 
                     }
                 } else {
-                    // If no enemies, dog follows player
                     const angle = Math.atan2(player.y - dog.y, player.x - dog.x);
                     dog.x += Math.cos(angle) * dog.speed * effectiveDt;
                     dog.y += Math.sin(angle) * dog.speed * effectiveDt;
@@ -2603,16 +2653,14 @@
         function updateDrones(dt) {
             const effectiveDt = dt * gameSpeedMultiplier;
             drones.forEach(drone => {
-                const closestEnemy = enemies.find(e => !e.controlled); // Each drone targets the closest non-controlled enemy
+                const closestEnemy = enemies.find(e => !e.controlled); 
                 if (closestEnemy) {
                     const angle = Math.atan2(closestEnemy.y - drone.y, closestEnemy.x - drone.x);
-                    // Drones orbit the player if no target, or move towards target
-                    if (dist(drone, player) > 150) { // Orbit distance
+                    if (dist(drone, player) > 150) { 
                         drone.x += Math.cos(angle) * drone.speed * effectiveDt;
                         drone.y += Math.sin(angle) * drone.speed * effectiveDt;
                     } else {
-                        // Simple orbit around player
-                        drone.orbitAngle += effectiveDt * 2; // Orbit speed
+                        drone.orbitAngle += effectiveDt * 2; 
                         drone.x = player.x + Math.cos(drone.orbitAngle) * drone.orbitRadius;
                         drone.y = player.y + Math.sin(drone.orbitAngle) * drone.orbitRadius;
                     }
@@ -2622,18 +2670,17 @@
                         projectiles.push({
                             x: drone.x,
                             y: drone.y,
-                            vx: Math.cos(angle) * 500, // Drone projectile speed
+                            vx: Math.cos(angle) * 500, 
                             vy: Math.sin(angle) * 500,
                             size: 4,
                             damage: drone.damage,
-                            color: '#00FFFF', // Cyan for drone projectiles
+                            color: '#00FFFF', 
                             pierce: 0,
                             hits: 0
                         });
                         drone.shootTimer = 0;
                     }
                 } else {
-                    // If no enemies, drones orbit the player
                     drone.orbitAngle += effectiveDt * 2; 
                     drone.x = player.x + Math.cos(drone.orbitAngle) * drone.orbitRadius;
                     drone.y = player.y + Math.sin(drone.orbitAngle) * drone.orbitRadius;
@@ -2642,22 +2689,20 @@
         }
 
         function updateDronesEffect() {
-            // Ensure we have the correct number of drones
             while (drones.length < player.stats.droneCount) {
                 const newDrone = {
                     x: player.x,
                     y: player.y,
                     size: 10,
-                    speed: 200, // Base speed for drones
+                    speed: 200, 
                     damage: player.stats.droneDamage,
                     attackSpeed: player.stats.droneAttackSpeed,
                     shootTimer: 0,
                     orbitAngle: Math.random() * Math.PI * 2,
-                    orbitRadius: 50 + drones.length * 10 // Stagger orbit radius
+                    orbitRadius: 50 + drones.length * 10 
                 };
                 drones.push(newDrone);
             }
-            // Update existing drones' stats if they have changed
             drones.forEach(drone => {
                 drone.damage = player.stats.droneDamage;
                 drone.attackSpeed = player.stats.droneAttackSpeed;
@@ -2681,12 +2726,10 @@
                     b.x += b.vx * dt;
                     b.y += b.vy * dt;
 
-                    // Check if boomerang has returned to player
                     if (dist(player, b) < player.size / 2 + b.size / 2) {
-                        return false; // Remove boomerang
+                        return false; 
                     }
                 }
-                // Keep boomerang on screen
                 return b.x > -100 && b.x < gameWorld.width + 100 && b.y > -100 && b.y < gameWorld.height + 100;
             });
         }
@@ -2694,18 +2737,15 @@
         function checkCollisions() {
             enemies.forEach(enemy => {
                 if (!enemy.controlled) {
-                    // Melee collision for basic, tank, car, ninja, enemyDog, cobra, yellowSkull
                     if (dist(player, enemy) < (player.size / 2 + enemy.size / 2) && 
                         (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull')) {
                         let damageTaken = enemy.damage;
-                        // Apply bulletproof suit damage reduction
                         damageTaken = damageTaken * (1 - player.stats.damageReduction);
                         
-                        // Reduce damage by 50% if ultimate is active
                         if (ultimateActive) {
                             damageTaken *= 0.5;
                         }
-                        damageTaken = Math.max(0, damageTaken); // Ensure damage is not negative
+                        damageTaken = Math.max(0, damageTaken); 
                         player.health -= damageTaken;
                         if (player.health <= 0) {
                             gameOver();
@@ -2714,7 +2754,6 @@
                 }
             });
         
-            // Iterate backwards to safely remove projectiles
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const p = projectiles[i];
                 let projectileRemoved = false;
@@ -2723,16 +2762,14 @@
                     const enemy = enemies[j];
 
                     if (!enemy.controlled && dist(p, enemy) < (p.size + enemy.size / 2)) {
-                        // If it's a robot drone and hit, explode it
                         if (enemy.type === 'robotDrone') {
                             explodeRobotDrone(enemy);
-                            enemies.splice(j, 1); // Remove drone after explosion
-                            j--; // Decrement j because the array length changed
-                            projectileRemoved = true; // Remove projectile too
+                            enemies.splice(j, 1); 
+                            j--; 
+                            projectileRemoved = true; 
                             break;
                         }
                         
-                        // Apply damage
                         const damageDealt = p.damage;
                         enemy.health -= damageDealt;
                         ultimateCharge += ultimateChargePerHit;
@@ -2746,36 +2783,31 @@
                         if (p.hits > p.pierce) {
                             projectiles.splice(i, 1);
                             projectileRemoved = true;
-                            break; // Break inner loop, move to next projectile
+                            break; 
                         }
                     }
                 }
             }
 
-            // Enemy projectile collision with player and other enemies (for AoE)
             for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
                 const p = enemyProjectiles[i];
                 if (dist(player, p) < (player.size / 2 + p.size / 2)) {
                     let damageTaken = p.damage;
-                    // Apply bulletproof suit damage reduction
                     damageTaken = damageTaken * (1 - player.stats.damageReduction);
 
-                    // Reduce damage by 50% if ultimate is active
                     if (ultimateActive) {
                         damageTaken *= 0.5;
                     }
-                    damageTaken = Math.max(0, damageTaken); // Ensure damage is not negative
+                    damageTaken = Math.max(0, damageTaken); 
                     player.health -= damageTaken;
                     if (player.health <= 0) {
                         gameOver();
                     }
 
                     if (p.isAoE) {
-                        // Apply AoE damage to other enemies around the player
                         enemies.forEach(otherEnemy => {
-                            // Ensure it's not the enemy that fired the projectile and it's not a controlled enemy
                             if (otherEnemy !== p.sourceEnemy && !otherEnemy.controlled && dist(player, otherEnemy) < p.aoeRadius) {
-                                otherEnemy.health -= p.damage * 0.5; // Reduced damage for AoE splash
+                                otherEnemy.health -= p.damage * 0.5; 
                                 showDamageNumber(p.damage * 0.5, otherEnemy.x, otherEnemy.y);
                                 if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
                                     playSound('enemyHit');
@@ -2783,15 +2815,14 @@
                                 }
                             }
                         });
-                        playSound('explosion'); // Play explosion sound for AoE hit
-                        spawnParticles(p.x, p.y, {r: 255, g: 100, b: 0}); // Orange explosion particles
+                        playSound('explosion'); 
+                        spawnParticles(p.x, p.y, {r: 255, g: 100, b: 0}); 
                     }
-                    enemyProjectiles.splice(i, 1); // Remove projectile after hit
-                    i--; // Decrement index as array length changed
+                    enemyProjectiles.splice(i, 1); 
+                    i--; 
                 }
             }
 
-            // Spinning knives collision with enemies
             spinningKnives.forEach(knife => {
                 enemies.forEach(enemy => {
                     if (!enemy.controlled && !knife.hitEnemies.has(enemy) && dist(knife, enemy) < (knife.size + enemy.size / 2)) {
@@ -2803,14 +2834,12 @@
                             playSound('enemyHit');
                             lastEnemyHitSoundTime = survivalTime;
                         }
-                        knife.hitEnemies.add(enemy); // Mark enemy as hit by this knife in this cycle
+                        knife.hitEnemies.add(enemy); 
                     }
                 });
-                // Reset hit enemies for the next update cycle
                 knife.hitEnemies.clear();
             });
 
-            // Boomerang collision with enemies
             boomerangs.forEach(b => {
                 enemies.forEach(enemy => {
                     if (!enemy.controlled && !b.hitEnemies.has(enemy) && dist(b, enemy) < (b.size + enemy.size / 2)) {
@@ -2822,16 +2851,14 @@
                             playSound('enemyHit');
                             lastEnemyHitSoundTime = survivalTime;
                         }
-                        b.hitEnemies.add(enemy); // Mark enemy as hit by this boomerang
+                        b.hitEnemies.add(enemy); 
                     }
                 });
             });
         
-            // Allied dogs collision with enemies
             allyDogs.forEach(dog => {
                 enemies.forEach(enemy => {
                     if (!enemy.controlled && dist(dog, enemy) < (dog.size / 2 + enemy.size / 2)) {
-                        // Apply damage with cooldown
                         if (survivalTime - dog.lastAttackTime >= dog.attackCooldown) {
                             enemy.health -= dog.damage;
                             showDamageNumber(dog.damage, enemy.x, enemy.y);
@@ -2839,7 +2866,7 @@
                                 playSound('enemyHit');
                                 lastEnemyHitSoundTime = survivalTime;
                             }
-                            dog.lastAttackTime = survivalTime; // Update last attack time
+                            dog.lastAttackTime = survivalTime; 
                         }
                     }
                 });
@@ -2852,7 +2879,6 @@
                 }
             });
 
-            // Chest collision
             for (let i = chests.length - 1; i >= 0; i--) {
                 const chest = chests[i];
                 if (dist(player, chest) < (player.size / 2 + chest.size / 2)) {
@@ -2861,33 +2887,28 @@
                 }
             }
         
-            // This line now correctly filters out all enemies with health <= 0
             enemies = enemies.filter(enemy => {
                 if (enemy.health <= 0) {
                     gainXp(enemy.xp);
                     score += 10;
                     spawnParticles(enemy.x, enemy.y, enemy.color);
-                    // Powerups (XP coins) still drop from enemies
                     if (Math.random() < 0.1) {
                         spawnPowerup(enemy.x, enemy.y);
                     }
-                    return false; // Remove this enemy
+                    return false; 
                 }
-                return true; // Keep this enemy
+                return true; 
             });
         }
         
         function spawnEnemy() {
-            // Spawn rate adjustments
             const minSpawnInterval = 0.05; 
             const maxSpawnInterval = 0.8; 
-            // Adjusted spawn rate factor for smoother difficulty build-up (max at 10 mins)
             const spawnRateFactor = Math.min(1, survivalTime / 600); 
             let spawnInterval = maxSpawnInterval - (maxSpawnInterval - minSpawnInterval) * spawnRateFactor;
 
-            // Increase spawn rate significantly for the first minute
             if (survivalTime < 60) {
-                spawnInterval *= 0.33; // Reduce interval by 67% to increase spawn rate by 3x (1 / 3 = 0.33)
+                spawnInterval *= 0.33; 
             }
 
             if (spawnTimer >= spawnInterval) {
@@ -2895,19 +2916,19 @@
                 let x, y;
             
                 switch (side) {
-                    case 0: // Top
+                    case 0: 
                         x = Math.random() * gameWorld.width;
                         y = Math.max(0, camera.y - 50);
                         break;
-                    case 1: // Right
+                    case 1: 
                         x = Math.min(gameWorld.width, camera.x + camera.width / camera.zoom + 50);
                         y = Math.random() * gameWorld.height;
                         break;
-                    case 2: // Bottom
+                    case 2: 
                         x = Math.random() * gameWorld.width;
                         y = Math.min(gameWorld.height, camera.y + camera.height / camera.zoom + 50);
                         break;
-                    case 3: // Left
+                    case 3: 
                         x = Math.max(0, camera.x - 50);
                         y = Math.random() * gameWorld.height;
                         break;
@@ -2916,50 +2937,50 @@
                 let enemyType = 'basic';
                 const timeInMinutes = survivalTime / 60;
 
-                if (timeInMinutes < 0.5) { // First 30 seconds: basic, enemyDog, enemyDrone, robotDrone
+                if (timeInMinutes < 0.5) { 
                     const rand = Math.random();
                     if (rand < 0.5) enemyType = 'basic';
                     else if (rand < 0.7) enemyType = 'enemyDog';
                     else if (rand < 0.85) enemyType = 'enemyDrone';
-                    else enemyType = 'robotDrone'; // New: Robot Drone
-                } else if (timeInMinutes < 2) { // First 2 minutes: mostly basic, some tanks, drones, dogs, robotDrones
+                    else enemyType = 'robotDrone'; 
+                } else if (timeInMinutes < 2) { 
                     const rand = Math.random();
                     if (rand < 0.4) enemyType = 'basic';
                     else if (rand < 0.6) enemyType = 'tank';
                     else if (rand < 0.75) enemyType = 'enemyDog';
                     else if (rand < 0.85) enemyType = 'enemyDrone';
-                    else enemyType = 'robotDrone'; // New: Robot Drone
-                } else if (timeInMinutes < 5) { // From 2 to 5 minutes: still basic and tank, but more variety in distribution, introduce cobra, more robotDrones
+                    else enemyType = 'robotDrone'; 
+                } else if (timeInMinutes < 5) { 
                     const rand = Math.random();
-                    if (rand < 0.5) enemyType = 'basic'; // Still high chance of basic
-                    else if (rand < 0.7) enemyType = 'tank'; // Increased chance of tank
-                    else if (rand < 0.8) enemyType = 'car'; // Small chance of car (non-shooter)
-                    else if (rand < 0.9) enemyType = 'cobra'; // Introduce cobra
-                    else enemyType = 'robotDrone'; // Increased chance of Robot Drone
-                } else if (timeInMinutes < 8) { // From 5 to 8 minutes: introduce shooters, all types
+                    if (rand < 0.5) enemyType = 'basic'; 
+                    else if (rand < 0.7) enemyType = 'tank'; 
+                    else if (rand < 0.8) enemyType = 'car'; 
+                    else if (rand < 0.9) enemyType = 'cobra'; 
+                    else enemyType = 'robotDrone'; 
+                } else if (timeInMinutes < 8) { 
                     const rand = Math.random();
                     if (rand < 0.1) enemyType = 'basic';
-                    else if (rand < 0.25) enemyType = 'fast'; // Shooter
-                    else if (rand < 0.4) enemyType = 'gunner'; // Shooter
+                    else if (rand < 0.25) enemyType = 'fast'; 
+                    else if (rand < 0.4) enemyType = 'gunner'; 
                     else if (rand < 0.55) enemyType = 'tank';
-                    else if (rand < 0.65) enemyType = 'drone'; // Shooter
+                    else if (rand < 0.65) enemyType = 'drone'; 
                     else if (rand < 0.75) enemyType = 'car';
                     else if (rand < 0.85) enemyType = 'elite';
                     else if (rand < 0.95) enemyType = 'cobra';
-                    else enemyType = 'robotDrone'; // Still present
-                } else { // After 8 minutes: all enemy types, including ninjas, and robotDrones, and yellowSkull
+                    else enemyType = 'robotDrone'; 
+                } else { 
                     const rand = Math.random();
                     if (rand < 0.05) enemyType = 'basic';
-                    else if (rand < 0.15) enemyType = 'fast'; // Shooter
-                    else if (rand < 0.25) enemyType = 'gunner'; // Shooter
+                    else if (rand < 0.15) enemyType = 'fast'; 
+                    else if (rand < 0.25) enemyType = 'gunner'; 
                     else if (rand < 0.35) enemyType = 'tank';
-                    else if (rand < 0.45) enemyType = 'drone'; // Shooter
+                    else if (rand < 0.45) enemyType = 'drone'; 
                     else if (rand < 0.55) enemyType = 'car';
                     else if (rand < 0.65) enemyType = 'elite';
-                    else if (rand < 0.75) enemyType = 'ninja'; // Melee, but high level
+                    else if (rand < 0.75) enemyType = 'ninja'; 
                     else if (rand < 0.85) enemyType = 'cobra';
-                    else if (rand < 0.95) enemyType = 'robotDrone'; // Still present
-                    else enemyType = 'yellowSkull'; // New: Yellow Skull
+                    else if (rand < 0.95) enemyType = 'robotDrone'; 
+                    else enemyType = 'yellowSkull'; 
                 }
 
                 if (enemyType === 'cobra') {
@@ -2974,12 +2995,12 @@
                         flankAngle: (Math.random() - 0.5) * Math.PI / 4,
                         vx: 0, 
                         vy: 0, 
-                        animationFrame: 0, // Initialize animation frame for enemies
-                        stuckTimer: 0, // Initialize stuck timer
-                        ghostModeActive: false, // Initialize ghost mode flag
-                        ghostModeTimer: 0, // Initialize ghost mode timer
-                        lastX: x, // For stuck detection
-                        lastY: y, // For stuck detection
+                        animationFrame: 0, 
+                        stuckTimer: 0, 
+                        ghostModeActive: false, 
+                        ghostModeTimer: 0, 
+                        lastX: x, 
+                        lastY: y, 
                         ...getEnemyStats(enemyType)
                     };
                     enemies.push(newEnemy);
@@ -2989,25 +3010,25 @@
         }
 
         function spawnCobra(x, y) {
-            const numSegments = 5 + Math.floor(Math.random() * 3); // 5 to 7 segments
+            const numSegments = 5 + Math.floor(Math.random() * 3); 
             const segmentSize = 25;
-            const snakeId = Date.now(); // Unique ID for this snake instance
+            const snakeId = Date.now(); 
 
             for (let i = 0; i < numSegments; i++) {
-                const segmentX = x - i * segmentSize * 1.5; // Spawn segments horizontally
+                const segmentX = x - i * segmentSize * 1.5; 
                 const segmentY = y;
                 enemies.push({
                     x: segmentX,
                     y: segmentY,
                     type: 'cobra',
-                    controlled: false, // Cobras are not controlled by player
+                    controlled: false, 
                     snakeId: snakeId,
                     segmentIndex: i,
-                    stuckTimer: 0, // Initialize stuck timer
-                    ghostModeActive: false, // Initialize ghost mode flag
-                    ghostModeTimer: 0, // Initialize ghost mode timer
-                    lastX: segmentX, // For stuck detection
-                    lastY: segmentY, // For stuck detection
+                    stuckTimer: 0, 
+                    ghostModeActive: false, 
+                    ghostModeTimer: 0, 
+                    lastX: segmentX, 
+                    lastY: segmentY, 
                     ...getEnemyStats('cobra')
                 });
             }
@@ -3016,92 +3037,83 @@
         function getEnemyStats(type) {
             const base = {
                 size: 25, speed: 30, health: 50, damage: 10, xp: 10,
-                // Default projectile stats for shooting enemies
                 projectileSize: 8, projectileDamage: 15, projectileSpeed: 100, projectileColor: '#FF0000', attackRange: 250, attackSpeed: 0.8
             };
         
             switch (type) {
                 case 'fast':
                     base.size = 20; base.speed = 50; base.health = 30; base.xp = 15; base.color = '#ff4444';
-                    base.attackRange = 200; base.attackSpeed = 2; base.projectileSpeed = 150; // Slower projectiles
+                    base.attackRange = 200; base.attackSpeed = 2; base.projectileSpeed = 150; 
                     break;
                 case 'tank':
-                    base.size = 30; // Reduced from 40 to 30
+                    base.size = 30; 
                     base.speed = 15; base.health = 200; base.xp = 50; base.color = '#9966ff';
-                    // Tanks don't shoot by default
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0;
                     break;
                 case 'elite':
                     base.size = 30; base.speed = 40; base.health = 500; base.damage = 20; base.xp = 200; base.color = '#ff0000';
-                    // Elites don't shoot by default
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0;
                     break;
                 case 'gunner':
                     base.size = 25; base.speed = 20; base.health = 40; base.damage = 0; base.xp = 20; base.color = '#3399ff';
-                    base.attackRange = 400; base.attackSpeed = 1; base.projectileSpeed = 100; // Slower projectiles
+                    base.attackRange = 400; base.attackSpeed = 1; base.projectileSpeed = 100; 
                     break;
                 case 'drone':
                     base.size = 15; base.speed = 40; base.health = 20; base.xp = 12; base.color = '#888888';
-                    base.attackRange = 150; base.attackSpeed = 2.5; base.projectileSpeed = 125; base.projectileSize = 5; base.projectileColor = '#FF0000'; // Enemy projectiles are red
+                    base.attackRange = 150; base.attackSpeed = 2.5; base.projectileSpeed = 125; base.projectileSize = 5; base.projectileColor = '#FF0000'; 
                     break;
                 case 'car':
-                    base.size = 35; // Reduced from 50 to 35
-                    base.speed = 70; base.health = 300; base.damage = 25 * 0.8; base.xp = 75; base.color = '#663300'; // Reduced damage by 20%
-                    // Cars don't shoot by default
+                    base.size = 35; 
+                    base.speed = 70; base.health = 300; base.damage = 25 * 0.8; base.xp = 75; base.color = '#663300'; 
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0;
                     break;
                 case 'ninja':
                     base.size = 22; base.speed = 80; base.health = 60; base.damage = 15; base.xp = 30; base.color = '#333333';
-                    // Ninjas don't shoot by default
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0;
                     break;
                 case 'enemyDog':
-                    base.size = 20; base.speed = 60; base.health = 35; base.damage = 12; base.xp = 18; base.color = '#A0522D'; // Sienna
-                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; // Melee
+                    base.size = 20; base.speed = 60; base.health = 35; base.damage = 12; base.xp = 18; base.color = '#A0522D'; 
+                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; 
                     break;
                 case 'enemyDrone':
-                    base.size = 15; base.speed = 45; base.health = 25; base.damage = 0; base.xp = 15; base.color = '#4682B4'; // SteelBlue
-                    base.attackRange = 200; base.attackSpeed = 1.5; base.projectileSpeed = 110; base.projectileSize = 6; base.projectileColor = '#FF0000'; // Enemy projectiles are red
+                    base.size = 15; base.speed = 45; base.health = 25; base.damage = 0; base.xp = 15; base.color = '#4682B4'; 
+                    base.attackRange = 200; base.attackSpeed = 1.5; base.projectileSpeed = 110; base.projectileSize = 6; base.projectileColor = '#FF0000'; 
                     break;
                 case 'cobra':
-                    base.size = 25; base.speed = 40; base.health = 70; base.damage = 15; base.xp = 25; base.color = '#228B22'; // ForestGreen
-                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; // Melee
+                    base.size = 25; base.speed = 40; base.health = 70; base.damage = 15; base.xp = 25; base.color = '#228B22'; 
+                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; 
                     break;
-                case 'robotDrone': // New robot drone
-                    base.size = 18; base.speed = 70; base.health = 20; base.damage = 25; base.xp = 15; base.color = '#808080'; // Grey
-                    base.explosionRadius = 70; // Radius of explosion damage
-                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; // No projectiles, explodes on contact
+                case 'robotDrone': 
+                    base.size = 18; base.speed = 70; base.health = 20; base.damage = 25; base.xp = 15; base.color = '#808080'; 
+                    base.explosionRadius = 70; 
+                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; 
                     break;
-                case 'yellowSkull': // New yellow skull enemy
-                    base.size = 35; // Slightly larger
-                    base.speed = 10; // Slower than tank (tank is 15)
-                    base.health = 400; // Double the base health of tank (200 * 2)
-                    base.damage = 15; // Standard melee damage
-                    base.xp = 100; // High XP
-                    base.color = '#FFFF00'; // Yellow
-                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; // Melee
+                case 'yellowSkull': 
+                    base.size = 35; 
+                    base.speed = 10; 
+                    base.health = 400; 
+                    base.damage = 15; 
+                    base.xp = 100; 
+                    base.color = '#FFFF00'; 
+                    base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; 
                     break;
-                default: // basic enemy
+                default: 
                     base.color = '#777777';
-                    // Basic enemies don't shoot by default
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0;
                     break;
             }
             
-            // Smoother difficulty scaling
             const healthScale = 1 + Math.pow(survivalTime / 60, 0.5); 
             const damageScale = 1 + Math.pow(survivalTime / 90, 0.4); 
             let speedScale = 1 + Math.min(survivalTime / 180, 1.5); 
 
-            // Increase enemy speed by 15% after 2 minutes
-            if (survivalTime >= 120) { // 2 minutes = 120 seconds
+            if (survivalTime >= 120) { 
                 speedScale *= 1.15;
             }
 
             base.health *= healthScale;
             base.damage *= damageScale;
             base.speed *= speedScale;
-            // XP gain reduced by 50% (0.5 multiplier)
             base.xp = Math.floor(base.xp * ((healthScale + damageScale) / 2) * 0.5); 
 
             if (type === 'gunner' || type === 'fast' || type === 'drone' || type === 'enemyDrone') { 
@@ -3109,9 +3121,8 @@
                 base.attackSpeed *= (1 + Math.min(survivalTime / 180, 1));
             }
 
-            // Reduce health of basic enemies by 25% for the first minute
             if (type === 'basic' && survivalTime < 60) {
-                base.health *= 0.75; // 25% reduction
+                base.health *= 0.75; 
             }
 
             return base;
@@ -3119,16 +3130,15 @@
 
         function explodeRobotDrone(drone) {
             playSound('explosion');
-            spawnParticles(drone.x, drone.y, {r: 255, g: 100, b: 0}); // Orange explosion particles
+            spawnParticles(drone.x, drone.y, {r: 255, g: 100, b: 0}); 
 
-            // Damage player if in radius
             if (dist(player, drone) < (player.size / 2 + drone.explosionRadius)) {
                 let damageTaken = drone.damage;
                 damageTaken = damageTaken * (1 - player.stats.damageReduction);
                 if (ultimateActive) {
                     damageTaken *= 0.5;
                 }
-                damageTaken = Math.max(0, damageTaken);
+                damageTaken = Math.max(0, damageTaken); 
                 player.health -= damageTaken;
                 if (player.health <= 0) {
                     gameOver();
@@ -3136,10 +3146,9 @@
                 showDamageNumber(damageTaken, player.x, player.y);
             }
 
-            // Damage other enemies in radius
             enemies.forEach(otherEnemy => {
                 if (otherEnemy !== drone && !otherEnemy.controlled && dist(drone, otherEnemy) < (drone.explosionRadius + otherEnemy.size / 2)) {
-                    otherEnemy.health -= drone.damage * 0.5; // Half damage to other enemies
+                    otherEnemy.health -= drone.damage * 0.5; 
                     showDamageNumber(drone.damage * 0.5, otherEnemy.x, otherEnemy.y);
                     if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
                         playSound('enemyHit');
@@ -3152,12 +3161,10 @@
         function spawnPowerup(x, y) {
             powerups.push({
                 x: x, y: y, size: 10, color: '#ffff00', speed: 300, 
-                // XP value increased significantly
-                xpValue: Math.floor((50 + Math.floor(Math.random() * 50)) * 1.5) // Reduced XP gain to 1.5x
+                xpValue: Math.floor((50 + Math.floor(Math.random() * 50)) * 1.5) 
             });
         }
 
-        // Modified spawnChest function to accept coordinates
         function spawnChestAtLocation(x, y) {
             chests.push({
                 x: x, y: y, size: 30, type: 'chest'
@@ -3165,42 +3172,38 @@
         }
 
         function activateTemporaryPowerup() {
-            // If a temporary power-up is already active, deactivate it first
             if (temporaryPowerupActive) {
                 deactivateTemporaryPowerup();
             }
 
-            // 'superMagnet' and 'enemyConversion' removed from powerupChoices
             const powerupChoices = ['spreadGun', 'femaleAllyAndDogs']; 
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
 
             temporaryPowerupType = chosenPowerup;
 
-            // Scale duration based on game time
-            if (survivalTime >= 300 && survivalTime < 900) { // 5 to 15 minutes
+            if (survivalTime >= 300 && survivalTime < 900) { 
                 temporaryPowerupDuration = 10;
-            } else { // Early game (0-5 minutes) and after 15 minutes
+            } else { 
                 temporaryPowerupDuration = 5;
             }
             
-            temporaryPowerupActive = true; // Set active for all temporary power-ups
+            temporaryPowerupActive = true; 
 
             switch (chosenPowerup) {
                 case 'spreadGun':
                     console.log("Spread Gun Activated!");
-                    // Player's multiShot will be handled in updatePlayer
                     break;
                 case 'femaleAllyAndDogs':
                     console.log("Female Ally and Dogs Summoned!");
                     femaleAlly = {
-                        x: player.x + 50, // Spawn near player
+                        x: player.x + 50, 
                         y: player.y,
                         size: 20,
-                        speed: player.speed * 1.5, // Faster than player
-                        health: 200, // Ally has health
+                        speed: player.speed * 1.5, 
+                        health: 200, 
                         maxHealth: 200,
-                        damage: player.stats.damage * 0.8, // Female ally deals 80% of player damage per shot
-                        attackSpeed: player.stats.attackSpeed * 1.5, // Faster attack speed
+                        damage: player.stats.damage * 0.8, 
+                        attackSpeed: player.stats.attackSpeed * 1.5, 
                         shootTimer: 0,
                         currentShootAngle: 0,
                         projectileSize: 4,
@@ -3211,13 +3214,13 @@
                     allyDogs = [];
                     for (let i = 0; i < 3; i++) {
                         allyDogs.push({
-                            x: player.x - 50 + (i * 20), // Spawn near player, slightly spread out
+                            x: player.x - 50 + (i * 20), 
                             y: player.y + 50,
                             size: 20,
-                            speed: player.speed * 1.2, // Dogs slightly faster than player
-                            damage: player.stats.damage * 0.5, // Dogs deal half player's damage
-                            lastAttackTime: 0, // For attack cooldown
-                            attackCooldown: 0.5 // Dogs attack every 0.5 seconds
+                            speed: player.speed * 1.2, 
+                            damage: player.stats.damage * 0.5, 
+                            lastAttackTime: 0, 
+                            attackCooldown: 0.5 
                         });
                     }
                     break;
@@ -3230,12 +3233,11 @@
             switch (temporaryPowerupType) {
                 case 'spreadGun':
                     console.log("Spread Gun Deactivated!");
-                    // No direct change needed as updatePlayer handles default multiShot
                     break;
                 case 'femaleAllyAndDogs':
                     console.log("Female Ally and Dogs Deactivated!");
-                    femaleAlly = null; // Remove the female ally
-                    allyDogs = []; // Remove the dogs
+                    femaleAlly = null; 
+                    allyDogs = []; 
                     break;
             }
             temporaryPowerupActive = false;
@@ -3244,56 +3246,43 @@
         }
         
         function gainXp(amount) {
-            const wasMessageBoxHidden = messageBox.style.display !== 'block'; // Check if message box was hidden BEFORE processing XP
+            const wasMessageBoxHidden = messageBox.style.display !== 'block'; 
             player.xp += amount;
             console.log(`[XP Gain] XP gained: ${amount}, Current XP: ${player.xp}, Next Level XP: ${player.nextLevelXp}`);
             while (player.xp >= player.nextLevelXp) {
                 levelUpQueue.push(true);
                 player.xp -= player.nextLevelXp;
-                player.nextLevelXp = Math.floor(player.nextLevelXp * 1.8); // Adjusted XP scaling: 1.8x (was 1.5x)
+                player.nextLevelXp = Math.floor(player.nextLevelXp * 1.8); 
                 player.maxHealth += 10;
                 player.health = Math.min(player.health + 10, player.maxHealth);
                 player.level++;
                 playSound('levelUp');
                 console.log(`[LEVEL UP] New Level: ${player.level}, XP remaining: ${player.xp}, Next Level XP: ${player.nextLevelXp}. Queue size: ${levelUpQueue.length}`);
             }
-            // Only show power selection if there are pending level-ups AND the message box was not already visible
-            // This prevents re-triggering the power selection if it's already open or about to open from a previous XP gain in the same frame
             if (levelUpQueue.length > 0 && wasMessageBoxHidden) {
                 console.log(`[Show Power] Calling showPowerSelection from gainXp. Queue size: ${levelUpQueue.length}, wasMessageBoxHidden: ${wasMessageBoxHidden}`);
                 showPowerSelection();
             }
         }
         
-        // The levelUp function is no longer directly called from update or selectPower.
-        // Its logic is now integrated into gainXp and selectPower for sequential level-ups.
-        // function levelUp() {
-        //     if (levelUpQueue.length > 0) {
-        //         levelUpQueue.shift(); // Remove one level-up from the queue
-        //         showPowerSelection();
-        //     }
-        // }
-        
         function showPowerSelection() {
             gameRunning = false;
-            isPaused = true; // Pause game when level up
-            Tone.Transport.stop(Tone.now()); // Stop music
+            isPaused = true; 
+            Tone.Transport.stop(Tone.now()); 
             messageBox.style.display = 'block';
             powerSelectionDiv.innerHTML = '';
             console.log("[Show Power] showPowerSelection called.");
         
-            const numOptions = 4; // Now showing 4 options
-            const availablePowers = POWER_OPTIONS.filter(p => p.level() < MAX_UPGRADE_LEVEL); // Filter based on current upgrade level
+            const numOptions = 4; 
+            const availablePowers = POWER_OPTIONS.filter(p => p.level() < MAX_UPGRADE_LEVEL); 
             const selectedPowers = [];
         
-            // Create a temporary mutable copy of availablePowers for selection
             let tempAvailablePowers = [...availablePowers];
 
-            // Select N unique powers
             while (selectedPowers.length < numOptions && tempAvailablePowers.length > 0) {
                 const randomIndex = Math.floor(Math.random() * tempAvailablePowers.length);
                 selectedPowers.push(tempAvailablePowers[randomIndex]);
-                tempAvailablePowers.splice(randomIndex, 1); // Remove to prevent duplicates
+                tempAvailablePowers.splice(randomIndex, 1); 
             }
         
             selectedPowers.forEach(power => {
@@ -3312,21 +3301,19 @@
             power.effect();
             console.log(`[Power Select] Power selected: ${power.name}. Before shift, queue size: ${levelUpQueue.length}`);
             
-            messageBox.style.display = 'none'; // Hide current message box
+            messageBox.style.display = 'none'; 
             
-            // If there are more level-ups pending, immediately show the next power selection
             if (levelUpQueue.length > 0) {
-                levelUpQueue.shift(); // Consume one level-up from the queue
+                levelUpQueue.shift(); 
                 console.log(`[Power Select] After shift, queue size: ${levelUpQueue.length}. Calling showPowerSelection again.`);
-                showPowerSelection(); // Show the next power selection screen
+                showPowerSelection(); 
             } else {
-                // Only resume game if no more level-ups are pending
                 console.log(`[Power Select] No more level ups pending. Resuming game.`);
                 gameRunning = true;
-                isPaused = false; // Unpause the game
-                if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Resume music if not muted
-                lastTime = performance.now(); // Reset lastTime to prevent large deltaTime jump
-                requestAnimationFrame(gameLoop); // Restart game loop
+                isPaused = false; 
+                if (!isMusicMuted) Tone.Transport.start(Tone.now()); 
+                lastTime = performance.now(); 
+                requestAnimationFrame(gameLoop); 
             }
         }
 
@@ -3338,23 +3325,23 @@
             enemyProjectiles.length = 0;
             powerups.length = 0;
             damageNumbers.length = 0;
-            particles = []; // Clear particles
+            particles = []; 
             spinningKnives = []; 
-            chests = []; // Reset chests
-            femaleAlly = null; // Reset female ally
-            allyDogs = []; // Reset allied dogs
-            drones = []; // Reset drones
-            boomerangs = []; // Reset boomerangs
-            levelUpQueue = []; // Clear level up queue
+            chests = []; 
+            femaleAlly = null; 
+            allyDogs = []; 
+            drones = []; 
+            boomerangs = []; 
+            levelUpQueue = []; 
             
             survivalTime = 0;
             shootTimer = 0;
             spawnTimer = 0;
             musicPatternTimer = 0;
-            randomChestSpawnTimer = 0; // Reset random chest spawn timer
+            randomChestSpawnTimer = 0; 
             gameSpeedMultiplier = 1; 
-            playerSpeedModifier = 1; // Reset player speed modifier
-            projectileSpeedModifier = 1; // Reset projectile speed modifier
+            playerSpeedModifier = 1; 
+            projectileSpeedModifier = 1; 
             bulletTimeActive = false; 
             bulletTimeDuration = 0; 
             temporaryPowerupActive = false; 
@@ -3371,17 +3358,15 @@
         }
 
         function updateCamera() {
-            // Center camera on player, but clamp to world boundaries
             camera.x = player.x - (camera.width / camera.zoom) / 2;
             camera.y = player.y - (camera.height / camera.zoom) / 2;
 
-            // Clamp camera to world bounds
             camera.x = Math.max(0, Math.min(camera.x, gameWorld.width - (camera.width / camera.zoom)));
             camera.y = Math.max(0, Math.min(camera.y, gameWorld.height - (camera.height / camera.zoom)));
         }
         
         function gameLoop(timestamp) {
-            if (!gameRunning || isPaused || isMenuOpen) return; // Stop loop if paused or menu is open
+            if (!gameRunning || isPaused || isMenuOpen) return; 
         
             deltaTime = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
@@ -3394,14 +3379,13 @@
         }
         
         function update(dt) {
-            const effectiveDt = dt * gameSpeedMultiplier; // Apply game speed multiplier
+            const effectiveDt = dt * gameSpeedMultiplier; 
 
             shootTimer += effectiveDt;
             spawnTimer += effectiveDt;
             musicPatternTimer += effectiveDt;
-            randomChestSpawnTimer += effectiveDt; // Update random chest spawn timer
+            randomChestSpawnTimer += effectiveDt; 
 
-            // Check for random chest spawn
             if (randomChestSpawnTimer >= RANDOM_CHEST_SPAWN_INTERVAL) {
                 if (Math.random() < RANDOM_CHEST_SPAWN_CHANCE) {
                     const x = Math.random() * gameWorld.width;
@@ -3421,7 +3405,6 @@
                 updateMusicPatterns(currentMusicPatternIndex);
             }
 
-            // Update burstChargeTimer
             if (player.upgrades.burstCharge > 0) {
                 player.burstChargeTimer -= effectiveDt;
             }
@@ -3429,82 +3412,78 @@
             if (player.stats.burstDamage > 0) {
                 player.burstTimer += effectiveDt;
             }
-            if (player.upgrades.shotgun > 0) { // Update shotgun timer
+            if (player.upgrades.shotgun > 0) { 
                 player.shotgunTimer += effectiveDt;
             }
-            if (player.stats.dualUziActive) { // Update dual Uzi timer
+            if (player.stats.dualUziActive) { 
                 player.dualUziTimer += effectiveDt;
             }
-            if (player.stats.boomerangCount > 0) { // Update boomerang timer
+            if (player.stats.boomerangCount > 0) { 
                 player.boomerangTimer += effectiveDt;
             }
 
-            // Update spinning knives position
             spinningKnives.forEach(knife => {
                 knife.angle += knife.rotationSpeed * effectiveDt;
                 knife.x = player.x + Math.cos(knife.angle) * knife.radius;
                 knife.y = player.y + Math.sin(knife.angle) * knife.radius;
             });
 
-            // The direct call to levelUp() from update is removed, as gainXp and selectPower manage the queue.
-            // if (levelUpQueue.length > 0 && messageBox.style.display !== 'block') {
-            //     levelUp();
-            // }
-
             if (ultimateActive) {
                 ultimateDuration -= effectiveDt;
                 if (ultimateDuration <= 0) {
                     ultimateActive = false;
-                    player.color = '#6A808C'; // Revert to blue-grey
+                    player.color = '#6A808C'; 
                     ultimateCharge = 0;
-                    // Deactivate Bullet Time effect
-                    gameSpeedMultiplier = 1; // Reset speed
-                    playerSpeedModifier = 1; // Reset player speed modifier
-                    projectileSpeedModifier = 1; // Reset projectile speed modifier
-                    if (!isMusicMuted) Tone.Transport.playbackRate = 1; // Reset music speed only if not muted
+                    gameSpeedMultiplier = 1; 
+                    playerSpeedModifier = 1; 
+                    projectileSpeedModifier = 1; 
+                    if (!isMusicMuted) Tone.Transport.playbackRate = 1; 
                 }
             } else if (ultimateCharge < ultimateMaxCharge) {
                 ultimateCharge += effectiveDt * 5 * (1 + player.upgrades.ultimateRecharge * 0.2); 
                 ultimateCharge = Math.min(ultimateCharge, ultimateMaxCharge);
             }
 
-            // Handle Temporary Power-ups (Spread Gun, Female Ally & Dogs)
             if (temporaryPowerupActive) {
-                temporaryPowerupDuration -= dt; // Duration now decreases based on real time
+                temporaryPowerupDuration -= dt; 
                 if (temporaryPowerupDuration <= 0) {
                     deactivateTemporaryPowerup();
                 }
             }
-
 
             updatePlayer(effectiveDt);
             updateCamera();
             updateEnemies(effectiveDt);
             updateProjectiles(effectiveDt);
             updatePowerups(effectiveDt);
-            updateChests(effectiveDt); // Update chests
-            updateFemaleAllyAndDogs(effectiveDt); // New: Update female ally and dogs
-            updateDrones(effectiveDt); // Update drones
-            updateBoomerangs(effectiveDt); // Update boomerangs
+            updateChests(effectiveDt); 
+            updateFemaleAllyAndDogs(effectiveDt); 
+            updateDrones(effectiveDt); 
+            updateBoomerangs(effectiveDt); 
             checkCollisions();
             updateDamageNumbers(effectiveDt);
-            updateParticles(effectiveDt); // Update particles
+            updateParticles(effectiveDt); 
         }
         
         async function gameOver() {
             gameRunning = false;
-            isPaused = true; // Ensure game is paused on game over
+            isPaused = true; 
             playSound('gameOver');
             
             if (backgroundMusicSequence) {
-                backgroundMusicSequence.stop(Tone.now()); // Pass Tone.now()
+                backgroundMusicSequence.stop(Tone.now()); 
             }
             if (bassSequence) {
-                bassSequence.stop(Tone.now()); // Pass Tone.now()
+                bassSequence.stop(Tone.now()); 
             }
-            Tone.Transport.stop(Tone.now()); // Pass Tone.now()
+            Tone.Transport.stop(Tone.now()); 
 
-            gameOverMenu.style.display = 'block';
+            // Save user's personal best score for the current level
+            if (window.saveUserLevelScore) {
+                await window.saveUserLevelScore(currentLevelId, score);
+            }
+
+            showGameOverMenu();
             document.getElementById('final-score').textContent = `Score: ${score}`;
             document.getElementById('final-time').textContent = `Time Survived: ${survivalTime.toFixed(1)}s`;
             document.getElementById('final-level').textContent = `Level Reached: ${player.level}`;
@@ -3524,7 +3503,9 @@
         async function saveAndDisplayHighScore() {
             const playerName = playerNameInput.value.trim();
             if (playerName) {
-                await window.saveHighScoreFirebase(playerName, score, survivalTime.toFixed(1), player.level);
+                if (window.saveHighScoreFirebase) {
+                    await window.saveHighScoreFirebase(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
+                }
                 highScoreModal.style.display = 'none';
                 displayHighScores();
             } else {
@@ -3547,23 +3528,22 @@
                 const li = document.createElement('li');
                 li.innerHTML = `
                     <span>${index + 1}. ${s.name}</span>
-                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level}</span>
+                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${s.levelId === 'hotel_lobby' ? 'Hotel' : 'Park'})</span>
                 `;
                 highScoresList.appendChild(li);
             });
         }
 
-        // --- New Pause/Menu/Music Functions ---
         function togglePause() {
             isPaused = !isPaused;
             if (isPaused) {
                 pauseButton.textContent = 'Resume';
-                Tone.Transport.stop(Tone.now()); // Stop music when paused
+                Tone.Transport.stop(Tone.now()); 
             } else {
                 pauseButton.textContent = 'Pause';
-                if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Resume music if not muted
-                lastTime = performance.now(); // Reset lastTime to prevent large deltaTime jump
-                requestAnimationFrame(gameLoop); // Restart game loop
+                if (!isMusicMuted) Tone.Transport.start(Tone.now()); 
+                lastTime = performance.now(); 
+                requestAnimationFrame(gameLoop); 
             }
         }
 
@@ -3571,33 +3551,29 @@
             isMenuOpen = !isMenuOpen;
             if (isMenuOpen) {
                 gameMenu.style.display = 'block';
-                Tone.Transport.stop(Tone.now()); // Stop music when menu is open
+                Tone.Transport.stop(Tone.now()); 
             } else {
                 gameMenu.style.display = 'none';
-                if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Resume music if not muted
-                lastTime = performance.now(); // Reset lastTime to prevent large deltaTime jump
-                requestAnimationFrame(gameLoop); // Restart game loop
+                if (!isMusicMuted) Tone.Transport.start(Tone.now()); 
+                lastTime = performance.now(); 
+                requestAnimationFrame(gameLoop); 
             }
         }
 
         function toggleMusic() {
             isMusicMuted = !isMusicMuted;
-            Tone.Destination.mute = isMusicMuted; // Mute/unmute all Tone.js output
+            Tone.Destination.mute = isMusicMuted; 
             muteMusicButton.textContent = isMusicMuted ? 'Unmute Music' : 'Mute Music';
         }
-        // --- End New Pause/Menu/Music Functions ---
 
-        // Function to create particles at a given position and color
         function spawnParticles(x, y, colorInput) {
             let r, g, b;
 
-            // Check if colorInput is an object (like {r: 255, g: 100, b: 0})
             if (typeof colorInput === 'object' && colorInput !== null) {
                 r = colorInput.r;
                 g = colorInput.g;
                 b = colorInput.b;
             } else if (typeof colorInput === 'string') {
-                // Parse enemy color string (e.g., '#777777') to RGB
                 if (colorInput.startsWith('#')) {
                     const hex = colorInput.substring(1);
                     r = parseInt(hex.substring(0, 2), 16);
@@ -3612,22 +3588,21 @@
                     }
                 }
             } else {
-                // Default to white if colorInput is neither a string nor a valid object
                 r = 255; g = 255; b = 255;
             }
 
-            const numParticles = 10 + Math.floor(Math.random() * 5); // More particles
+            const numParticles = 10 + Math.floor(Math.random() * 5); 
             for (let i = 0; i < numParticles; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 50 + Math.random() * 50; // Slower initial speed
+                const speed = 50 + Math.random() * 50; 
                 particles.push({
                     x: x,
                     y: y,
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
-                    size: 2 + Math.random() * 3, // Smaller particles
+                    size: 2 + Math.random() * 3, 
                     alpha: 1,
-                    color: { r: r, g: g, b: b } // Use the parsed/provided RGB color
+                    color: { r: r, g: g, b: b } 
                 });
             }
         }
@@ -3635,28 +3610,25 @@
         function init() {
             canvas.width = gameContainer.clientWidth;
             canvas.height = gameContainer.clientHeight;
-            // Adjust camera width/height based on zoom
             camera.width = canvas.width / camera.zoom;
             camera.height = canvas.height / camera.zoom;
 
-            // Initialize mini-map canvas size and scale
             miniMapCanvas.width = miniMapCanvas.clientWidth;
             miniMapCanvas.height = miniMapCanvas.clientHeight;
-            miniMapScale = miniMapCanvas.width / gameWorld.width; // Assuming square mini-map and world
+            miniMapScale = miniMapCanvas.width / gameWorld.width; 
 
             window.addEventListener('resize', () => {
                 canvas.width = gameContainer.clientWidth;
                 canvas.height = gameContainer.clientHeight;
-                camera.width = canvas.width / camera.zoom; // Recalculate based on zoom
-                camera.height = canvas.height / camera.zoom; // Recalculate based on zoom
+                camera.width = canvas.width / camera.zoom; 
+                camera.height = canvas.height / camera.zoom; 
 
-                // Re-initialize mini-map size and scale on resize
                 miniMapCanvas.width = miniMapCanvas.clientWidth;
                 miniMapCanvas.height = miniMapCanvas.clientHeight;
                 miniMapScale = miniMapCanvas.width / gameWorld.width;
 
                 if (!gameRunning) {
-                    drawStartMenu();
+                    showStartMenu();
                 }
             });
         
@@ -3668,18 +3640,20 @@
             document.getElementById('restartButton').addEventListener('click', handleRetry);
             saveScoreButton.addEventListener('click', saveAndDisplayHighScore);
 
-            // New event listeners for pause, menu, and music buttons
             pauseButton.addEventListener('click', togglePause);
             menuButton.addEventListener('click', toggleMenu);
             muteMusicButton.addEventListener('click', toggleMusic);
-            resumeFromMenuButton.addEventListener('click', toggleMenu); // Resume game from menu
+            resumeFromMenuButton.addEventListener('click', toggleMenu); 
+
+            // New level select button and its event listeners
+            levelSelectButton.addEventListener('click', showLevelSelectMenu);
+            backToMainMenuButton.addEventListener('click', showStartMenu);
 
             canvas.addEventListener('mousedown', handlePointerEvent);
             canvas.addEventListener('touchstart', handlePointerEvent, { passive: false });
             
             function handlePointerEvent(e) {
                 e.preventDefault();
-                // Only allow player movement input if game is running and not paused/menu open
                 if (!gameRunning || isPaused || isMenuOpen) return; 
 
                 const rect = canvas.getBoundingClientRect();
@@ -3693,7 +3667,6 @@
                     clientY = e.clientY;
                 }
                 
-                // Adjust input coordinates based on camera zoom
                 const inputX = (clientX - rect.left) / camera.zoom;
                 const inputY = (clientY - rect.top) / camera.zoom;
                 
@@ -3707,24 +3680,10 @@
                 }
             });
         
-            // Removed 'e' key listener as Burst Charge is now automatic
-            // document.addEventListener('keydown', (e) => {
-            //     const key = e.key.toLowerCase();
-            //     if (keys.hasOwnProperty(key)) {
-            //         keys[key] = true;
-            //     }
-            // });
-        
-            // document.addEventListener('keyup', (e) => {
-            //     const key = e.key.toLowerCase();
-            //     if (keys.hasOwnProperty(key)) {
-            //         keys[key] = false;
-            //     }
-            // });
-
+            // Initial obstacle generation based on default level
             generateObstacles();
         
-            drawStartMenu();
+            showStartMenu();
 
             if (typeof window.initFirebase === 'function') {
                 window.initFirebase();
@@ -3733,41 +3692,64 @@
             }
         }
 
-        let enemies = []; // Define enemies globally
-        let projectiles = []; // Define projectiles globally
-        let enemyProjectiles = []; // Define enemyProjectiles globally
-        let powerups = []; // Define powerups globally
-        let obstacles = []; // Define obstacles globally
+        let enemies = []; 
+        let projectiles = []; 
+        let enemyProjectiles = []; 
+        let powerups = []; 
+        let obstacles = []; 
 
         function generateObstacles() {
-            // Clear existing obstacles before generating new ones
             obstacles = []; 
 
-            // Pillars (circular obstacles) - Increased from 10 to 20
-            for (let i = 0; i < 20; i++) {
-                const x = Math.random() * gameWorld.width;
-                const y = Math.random() * gameWorld.height;
-                obstacles.push({
-                    x: x, y: y, width: 50, height: 50, color: '#3c3c3c', type: 'pillar'
-                });
-            }
+            if (currentLevelId === 'hotel_lobby') {
+                for (let i = 0; i < 20; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 50, height: 50, color: '#3c3c3c', type: 'pillar'
+                    });
+                }
 
-            // Desks (rectangular obstacles) - Increased from 5 to 10
-            for (let i = 0; i < 10; i++) {
-                const x = Math.random() * gameWorld.width;
-                const y = Math.random() * gameWorld.height;
-                obstacles.push({
-                    x: x, y: y, width: 200, height: 50, color: '#4d4d4d', type: 'desk'
-                });
-            }
+                for (let i = 0; i < 10; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 200, height: 50, color: '#4d4d4d', type: 'desk'
+                    });
+                }
 
-            // Chairs (smaller rectangular obstacles) - Increased from 15 to 30
-            for (let i = 0; i < 30; i++) {
-                const x = Math.random() * gameWorld.width;
-                const y = Math.random() * gameWorld.height;
-                obstacles.push({
-                    x: x, y: y, width: 30, height: 30, color: '#2d2d2d', type: 'chair'
-                });
+                for (let i = 0; i < 30; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 30, height: 30, color: '#2d2d2d', type: 'chair'
+                    });
+                }
+            } else if (currentLevelId === 'the_park') {
+                // Trees (circular, larger)
+                for (let i = 0; i < 25; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 70, height: 70, color: '#006400', type: 'tree' // Dark green
+                    });
+                }
+                // Bushes (rectangular, smaller)
+                for (let i = 0; i < 35; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 40, height: 40, color: '#008000', type: 'bush' // Medium green
+                    });
+                }
+                // Park Benches (rectangular, longer)
+                for (let i = 0; i < 15; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 100, height: 30, color: '#8B4513', type: 'bench' // Saddle brown
+                    });
+                }
             }
         }
         
@@ -3809,22 +3791,22 @@
                 combatDrone: 0, shotgun: 0, dualUzi: 0,
                 boomerang: 0, burstCharge: 0
             };
-            player.burstChargeCooldown = 5; // Initial cooldown for burst charge
-            player.burstChargeTimer = 0; // Timer for burst charge
+            player.burstChargeCooldown = 5; 
+            player.burstChargeTimer = 0; 
             player.burstCooldown = 1;
             player.burstTimer = 0;
-            player.shotgunTimer = 0; // Reset shotgun timer
-            player.dualUziTimer = 0; // Reset dual Uzi timer
-            player.boomerangTimer = 0; // Reset boomerang timer
-            player.currentShootAngle = 0; // Reset shoot angle for arms
+            player.shotgunTimer = 0; 
+            player.dualUziTimer = 0; 
+            player.boomerangTimer = 0; 
+            player.currentShootAngle = 0; 
             ultimateChargePerHit = 0.5; 
             lastShotSoundTime = 0;
             lastEnemyHitSoundTime = 0;
-            lastUziSoundTime = 0; // Reset Uzi sound cooldown
+            lastUziSoundTime = 0; 
 
             currentMusicPatternIndex = 0;
             musicPatternTimer = 0;
-            randomChestSpawnTimer = 0; // Reset random chest spawn timer
+            randomChestSpawnTimer = 0; 
             gameSpeedMultiplier = 1; 
             playerSpeedModifier = 1; 
             projectileSpeedModifier = 1; 
@@ -3840,28 +3822,32 @@
             enemyProjectiles = [];
             powerups = [];
             damageNumbers = [];
-            particles = []; // Clear particles
+            particles = []; 
             spinningKnives = []; 
-            chests = []; // Clear chests
-            femaleAlly = null; // Clear female ally
-            allyDogs = []; // Clear allied dogs
-            drones = []; // Clear drones
-            boomerangs = []; // Clear boomerangs
-            levelUpQueue = []; // Clear level up queue
+            chests = []; 
+            femaleAlly = null; 
+            allyDogs = []; 
+            drones = []; 
+            boomerangs = []; 
+            levelUpQueue = []; 
             shootTimer = 0;
             spawnTimer = 0;
             ultimateActive = false;
             ultimateDuration = 0;
-            player.color = '#6A808C'; // Ensure player color is reset to blue-grey
+            player.color = '#6A808C'; 
             
             startMenu.style.display = 'none';
             gameOverMenu.style.display = 'none';
             messageBox.style.display = 'none';
             highScoreModal.style.display = 'none';
-            gameMenu.style.display = 'none'; // Ensure game menu is hidden
+            gameMenu.style.display = 'none'; 
+            levelSelectMenu.style.display = 'none'; // Ensure level select is hidden
+
+            // Generate obstacles for the selected level
+            generateObstacles();
             
             updateMusicPatterns(currentMusicPatternIndex);
-            if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Start music only if not muted
+            if (!isMusicMuted) Tone.Transport.start(Tone.now()); 
         
             requestAnimationFrame(gameLoop);
         }
