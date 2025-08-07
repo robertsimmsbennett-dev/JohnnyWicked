@@ -227,7 +227,7 @@
         }
 
         /* Specific styles for the new control buttons */
-        #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton { 
+        #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton, #backToMainMenuButtonFromGame { 
             padding: 8px 15px; /* Smaller padding for control buttons */
             font-size: 1em; /* Smaller font size */
             margin-top: 0; /* Remove top margin */
@@ -235,7 +235,7 @@
             box-shadow: 0 3px 10px rgba(0, 123, 255, 0.4);
         }
 
-        #pauseButton:hover, #menuButton:hover, #muteMusicButton:hover, #resumeFromMenuButton:hover {
+        #pauseButton:hover, #menuButton:hover, #muteMusicButton:hover, #resumeFromMenuButton:hover, #backToMainMenuButtonFromGame:hover {
             box-shadow: 0 5px 15px rgba(0, 123, 255, 0.6);
         }
 
@@ -505,6 +505,7 @@
             <h1>Game Menu</h1>
             <button id="muteMusicButton" class="control-button">Mute Music</button>
             <button id="resumeFromMenuButton" class="control-button">Resume Game</button>
+            <button id="backToMainMenuButtonFromGame" class="control-button">Back to Main Menu</button>
         </div>
 
         <div id="high-score-modal" style="display: none;">
@@ -699,7 +700,8 @@
         const levelSelectMenu = document.getElementById('level-select-menu'); // New
         const levelOptionsDiv = document.getElementById('level-options'); // New
         const backToMainMenuButton = document.getElementById('backToMainMenuButton'); // New
-        
+        const backToMainMenuButtonFromGame = document.getElementById('backToMainMenuButtonFromGame'); // New
+
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
         const levelDisplay = document.getElementById('level-display');
@@ -739,8 +741,13 @@
         
         let randomChestSpawnTimer = 0; 
         const RANDOM_CHEST_SPAWN_INTERVAL = 5; 
-        const RANDOM_CHEST_SPAWN_CHANCE = 0.011; // Increased by 10% from 0.01
-        
+        const RANDOM_CHEST_SPAWN_CHANCE = 0.011; 
+
+        let randomHeartSpawnTimer = 0; // New timer for heart drops
+        const HEART_SPAWN_START_TIME = 180; // 3 minutes in seconds
+        const HEART_SPAWN_INTERVAL = 60; // Every 60 seconds after 3 min mark
+        const HEART_SPAWN_CHANCE = 0.2; // 20% chance to drop a heart
+
         let chests = []; 
         let drones = []; 
         let boomerangs = []; 
@@ -777,7 +784,7 @@
                 pierce: 0,
                 multiShot: 1,
                 healthRegen: 0.1,
-                magnet: 80, // Increased default magnet range
+                magnet: 80, 
                 damageReduction: 0, 
                 spinningKnivesDamage: 0, 
                 spinningKnivesCount: 0, 
@@ -1572,13 +1579,34 @@
             powerups.forEach(p => {
                 const screenX = p.x - camera.x;
                 const screenY = p.y - camera.y;
-                ctx.fillStyle = '#FFD700'; 
-                ctx.shadowColor = '#FFA500'; 
-                ctx.shadowBlur = 8; 
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2); 
-                ctx.fill();
-                ctx.shadowBlur = 0; 
+                if (p.type === 'xp') {
+                    ctx.fillStyle = '#FFD700'; 
+                    ctx.shadowColor = '#FFA500'; 
+                    ctx.shadowBlur = 8; 
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2); 
+                    ctx.fill();
+                    ctx.shadowBlur = 0; 
+                } else if (p.type === 'heart') {
+                    ctx.fillStyle = '#FF0000'; 
+                    ctx.shadowColor = '#FF0000';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.moveTo(screenX + p.size * 0.5, screenY + p.size * 0.3);
+                    ctx.bezierCurveTo(
+                        screenX + p.size * 1.0, screenY - p.size * 0.7,
+                        screenX + p.size * 1.5, screenY + p.size * 0.3,
+                        screenX, screenY + p.size * 1.0
+                    );
+                    ctx.bezierCurveTo(
+                        screenX - p.size * 1.5, screenY + p.size * 0.3,
+                        screenX - p.size * 1.0, screenY - p.size * 0.7,
+                        screenX - p.size * 0.5, screenY + p.size * 0.3
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
             });
         }
 
@@ -1881,9 +1909,33 @@
             chests.forEach(chest => {
                 const miniX = chest.x * miniMapScale;
                 const miniY = chest.y * miniMapScale;
-                const chestMiniSize = chest.size * miniMapScale * 1.5; // Make chest icon larger
+                const chestMiniSize = chest.size * miniMapScale * 1.5; 
                 miniMapCtx.fillStyle = '#FFD700'; 
                 miniMapCtx.fillRect(miniX - chestMiniSize / 2, miniY - chestMiniSize / 2, chestMiniSize, chestMiniSize);
+            });
+
+            // Draw hearts on the mini-map
+            powerups.forEach(p => {
+                if (p.type === 'heart') {
+                    const miniX = p.x * miniMapScale;
+                    const miniY = p.y * miniMapScale;
+                    const heartMiniSize = p.size * miniMapScale * 1.5; 
+                    miniMapCtx.fillStyle = '#FF0000';
+                    miniMapCtx.beginPath();
+                    miniMapCtx.moveTo(miniX + heartMiniSize * 0.5, miniY + heartMiniSize * 0.3);
+                    miniMapCtx.bezierCurveTo(
+                        miniX + heartMiniSize * 1.0, miniY - heartMiniSize * 0.7,
+                        miniX + heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
+                        miniX, miniY + heartMiniSize * 1.0
+                    );
+                    miniMapCtx.bezierCurveTo(
+                        miniX - heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
+                        miniX - heartMiniSize * 1.0, miniY - heartMiniSize * 0.7,
+                        miniX - heartMiniSize * 0.5, miniY + heartMiniSize * 0.3
+                    );
+                    miniMapCtx.closePath();
+                    miniMapCtx.fill();
+                }
             });
         }
 
@@ -1891,14 +1943,14 @@
             startMenu.style.display = 'block';
             gameOverMenu.style.display = 'none';
             gameMenu.style.display = 'none'; 
-            levelSelectMenu.style.display = 'none'; // Ensure level select is hidden
+            levelSelectMenu.style.display = 'none'; 
         }
         
         function showGameOverMenu() {
             startMenu.style.display = 'none';
             gameOverMenu.style.display = 'block';
             gameMenu.style.display = 'none'; 
-            levelSelectMenu.style.display = 'none'; // Ensure level select is hidden
+            levelSelectMenu.style.display = 'none'; 
         }
 
         function showLevelSelectMenu() {
@@ -2270,7 +2322,7 @@
                 const timeInMinutes = survivalTime / 60;
 
                 // New logic for spawning 'enforcer' every 5 minutes
-                if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { // 10% chance every 5 minutes
+                if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { 
                     enemyType = 'enforcer';
                 } else if (timeInMinutes < 0.5) { 
                     const rand = Math.random();
@@ -2290,7 +2342,7 @@
                     if (rand < 0.5) enemyType = 'basic'; 
                     else if (rand < 0.7) enemyType = 'tank'; 
                     else if (rand < 0.8) enemyType = 'car'; 
-                    else if (rand < 0.9) enemyType = 'cobra';
+                    else if (rand < 0.9) enemyType = 'cobra'; 
                     else enemyType = 'robotDrone'; 
                 } else if (timeInMinutes < 8) { 
                     const rand = Math.random();
@@ -2403,8 +2455,8 @@
                         enemy.shootTimer += effectiveDt;
                         if (enemy.shootTimer >= 1 / enemy.attackSpeed) {
                             const attackAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-                            const numProjectiles = 5; // Number of "pellets" in the cone
-                            const coneSpread = Math.PI / 4; // 45 degree cone
+                            const numProjectiles = 5; 
+                            const coneSpread = Math.PI / 4; 
                             for (let i = 0; i < numProjectiles; i++) {
                                 const spread = (i - (numProjectiles - 1) / 2) * (coneSpread / numProjectiles);
                                 const projectileAngle = attackAngle + spread;
@@ -2416,13 +2468,13 @@
                                     size: enemy.projectileSize,
                                     damage: enemy.projectileDamage,
                                     color: enemy.projectileColor,
-                                    isAoE: false, // Not a persistent AoE, but a spread of projectiles
-                                    lifetime: 0.2, // Very short lifetime
+                                    isAoE: false, 
+                                    lifetime: 0.2, 
                                     maxLifetime: 0.2,
-                                    sourceEnemy: enemy // To prevent self-damage
+                                    sourceEnemy: enemy 
                                 });
                             }
-                            playSound('playerShot'); // Re-use playerShot sound for now
+                            playSound('playerShot'); 
                             enemy.shootTimer = 0;
                         }
                     } else {
@@ -2451,7 +2503,7 @@
                                 aoeRadius: isBazooka ? 70 : 0, 
                                 lifetime: isBazooka ? 1 : 0, 
                                 maxLifetime: isBazooka ? 1 : 0,
-                                sourceEnemy: enemy // To prevent self-damage
+                                sourceEnemy: enemy 
                             });
                             enemy.shootTimer = 0;
                         }
@@ -2565,7 +2617,7 @@
                 p.x += p.vx * effectiveDt; 
                 p.y += p.vy * effectiveDt; 
 
-                if (p.isAoE || p.lifetime !== undefined) { // Check for both AoE and general lifetime
+                if (p.isAoE || p.lifetime !== undefined) { 
                     p.lifetime -= effectiveDt;
                 }
 
@@ -2799,7 +2851,7 @@
             enemies.forEach(enemy => {
                 if (!enemy.controlled) {
                     if (dist(player, enemy) < (player.size / 2 + enemy.size / 2) && 
-                        (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull' || enemy.type === 'enforcer')) { // Added enforcer
+                        (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull' || enemy.type === 'enforcer')) { 
                         let damageTaken = enemy.damage;
                         damageTaken = damageTaken * (1 - player.stats.damageReduction);
                         
@@ -2852,7 +2904,7 @@
 
             for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
                 const p = enemyProjectiles[i];
-                if (p.sourceEnemy && dist(p.sourceEnemy, player) < p.sourceEnemy.attackRange && dist(player, p) < (player.size / 2 + p.size / 2)) { // Only hit if within source enemy's attack range
+                if (p.sourceEnemy && dist(p.sourceEnemy, player) < p.sourceEnemy.attackRange && dist(player, p) < (player.size / 2 + p.size / 2)) { 
                     let damageTaken = p.damage;
                     damageTaken = damageTaken * (1 - player.stats.damageReduction);
 
@@ -2935,7 +2987,12 @@
         
             powerups.forEach(p => {
                 if (dist(player, p) < (player.size / 2 + p.size / 2)) {
-                    gainXp(p.xpValue);
+                    if (p.type === 'xp') {
+                        gainXp(p.xpValue);
+                    } else if (p.type === 'heart') {
+                        player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.5);
+                        console.log("Health restored! Current health:", player.health);
+                    }
                     powerups = powerups.filter(item => item !== p);
                 }
             });
@@ -2954,7 +3011,7 @@
                     score += 10;
                     spawnParticles(enemy.x, enemy.y, enemy.color);
                     // Always spawn powerup (coin) when enemy dies
-                    spawnPowerup(enemy.x, enemy.y); 
+                    spawnPowerup(enemy.x, enemy.y, 'xp'); 
                     // Guaranteed treasure drop for 'enforcer'
                     if (enemy.type === 'enforcer') {
                         spawnChestAtLocation(enemy.x, enemy.y);
@@ -3002,7 +3059,7 @@
                 const timeInMinutes = survivalTime / 60;
 
                 // New logic for spawning 'enforcer' every 5 minutes
-                if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { // 10% chance every 5 minutes
+                if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { 
                     enemyType = 'enforcer';
                 } else if (timeInMinutes < 0.5) { 
                     const rand = Math.random();
@@ -3164,19 +3221,19 @@
                     base.color = '#FFFF00'; 
                     base.attackRange = 0; base.attackSpeed = 0; base.projectileSpeed = 0; 
                     break;
-                case 'enforcer': // New 'Extreme' enemy
-                    base.size = 40; // Larger size
-                    base.speed = 10; // Very slow
-                    base.health = 1000; // Very high health
-                    base.damage = 30; // High melee damage
-                    base.xp = 500; // High XP
-                    base.color = '#8B0000'; // Dark Red
-                    base.attackRange = 80; // Short range for its special attack
-                    base.attackSpeed = 0.5; // Moderate attack speed for special attack
-                    base.projectileSize = 20; // Visual size of the "cone" projectiles
-                    base.projectileDamage = 40; // Damage of the cone attack
-                    base.projectileSpeed = 100; // Speed of the cone projectiles (short-lived)
-                    base.projectileColor = '#FF4500'; // Orange-red for attack
+                case 'enforcer': 
+                    base.size = 40; 
+                    base.speed = 10; 
+                    base.health = 1000; 
+                    base.damage = 30; 
+                    base.xp = 500; 
+                    base.color = '#8B0000'; 
+                    base.attackRange = 80; 
+                    base.attackSpeed = 0.5; 
+                    base.projectileSize = 20; 
+                    base.projectileDamage = 40; 
+                    base.projectileSpeed = 100; 
+                    base.projectileColor = '#FF4500'; 
                     break;
                 default: 
                     base.color = '#777777';
@@ -3197,7 +3254,7 @@
             base.speed *= speedScale;
             base.xp = Math.floor(base.xp * ((healthScale + damageScale) / 2) * 0.5); 
 
-            if (type === 'gunner' || type === 'fast' || type === 'drone' || type === 'enemyDrone' || type === 'enforcer') { // Added enforcer
+            if (type === 'gunner' || type === 'fast' || type === 'drone' || type === 'enemyDrone' || type === 'enforcer') { 
                 base.projectileDamage *= damageScale;
                 base.attackSpeed *= (1 + Math.min(survivalTime / 180, 1));
             }
@@ -3239,12 +3296,19 @@
             });
         }
         
-        function spawnPowerup(x, y) {
-            // Reduced XP value as enemies always drop coins now
-            powerups.push({
-                x: x, y: y, size: 10, color: '#ffff00', speed: 300, 
-                xpValue: 10 // Fixed lower XP value
-            });
+        function spawnPowerup(x, y, type) {
+            if (type === 'xp') {
+                powerups.push({
+                    x: x, y: y, size: 10, color: '#ffff00', speed: 300, 
+                    xpValue: 10, 
+                    type: 'xp'
+                });
+            } else if (type === 'heart') {
+                 powerups.push({
+                    x: x, y: y, size: 15, color: '#FF0000', speed: 300, 
+                    type: 'heart'
+                });
+            }
         }
 
         function spawnChestAtLocation(x, y) {
@@ -3421,6 +3485,7 @@
             spawnTimer = 0;
             musicPatternTimer = 0;
             randomChestSpawnTimer = 0; 
+            randomHeartSpawnTimer = 0; 
             gameSpeedMultiplier = 1; 
             playerSpeedModifier = 1; 
             projectileSpeedModifier = 1; 
@@ -3437,6 +3502,21 @@
 
         function handleRetry() {
             startGame();
+        }
+
+        function backToMainMenu() {
+            resetGame();
+            gameRunning = false;
+            isPaused = false;
+            isMenuOpen = false;
+            if (backgroundMusicSequence) {
+                backgroundMusicSequence.stop(Tone.now());
+            }
+            if (bassSequence) {
+                bassSequence.stop(Tone.now());
+            }
+            Tone.Transport.stop(Tone.now());
+            showStartMenu();
         }
 
         function updateCamera() {
@@ -3467,6 +3547,7 @@
             spawnTimer += effectiveDt;
             musicPatternTimer += effectiveDt;
             randomChestSpawnTimer += effectiveDt; 
+            randomHeartSpawnTimer += effectiveDt;
 
             if (randomChestSpawnTimer >= RANDOM_CHEST_SPAWN_INTERVAL) {
                 if (Math.random() < RANDOM_CHEST_SPAWN_CHANCE) {
@@ -3475,6 +3556,16 @@
                     spawnChestAtLocation(x, y);
                 }
                 randomChestSpawnTimer = 0;
+            }
+
+            // New heart spawn logic
+            if (survivalTime >= HEART_SPAWN_START_TIME && randomHeartSpawnTimer >= HEART_SPAWN_INTERVAL) {
+                if (Math.random() < HEART_SPAWN_CHANCE) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    spawnPowerup(x, y, 'heart');
+                }
+                randomHeartSpawnTimer = 0;
             }
 
             if (musicPatternTimer >= MUSIC_PATTERN_CHANGE_INTERVAL) {
@@ -3736,6 +3827,7 @@
             // New level select button and its event listeners
             levelSelectButton.addEventListener('click', showLevelSelectMenu);
             backToMainMenuButton.addEventListener('click', showStartMenu);
+            backToMainMenuButtonFromGame.addEventListener('click', backToMainMenu); // New button listener
 
             canvas.addEventListener('mousedown', handlePointerEvent);
             canvas.addEventListener('touchstart', handlePointerEvent, { passive: false });
@@ -3862,7 +3954,7 @@
 
             player.stats = {
                 damage: 20, attackSpeed: 10, projectileSpeed: 400, pierce: 0, multiShot: 1, 
-                healthRegen: 0.1, magnet: 80, damageReduction: 0, // Magnet range increased
+                healthRegen: 0.1, magnet: 80, damageReduction: 0, 
                 spinningKnivesDamage: 0, spinningKnivesCount: 0, 
                 burstDamage: 0, burstProjectileCount: 0,
                 droneCount: 0, droneDamage: 0, droneAttackSpeed: 0,
@@ -3895,6 +3987,7 @@
             currentMusicPatternIndex = 0;
             musicPatternTimer = 0;
             randomChestSpawnTimer = 0; 
+            randomHeartSpawnTimer = 0; 
             gameSpeedMultiplier = 1; 
             playerSpeedModifier = 1; 
             projectileSpeedModifier = 1; 
@@ -3929,7 +4022,7 @@
             messageBox.style.display = 'none';
             highScoreModal.style.display = 'none';
             gameMenu.style.display = 'none'; 
-            levelSelectMenu.style.display = 'none'; // Ensure level select is hidden
+            levelSelectMenu.style.display = 'none'; 
 
             // Generate obstacles for the selected level
             generateObstacles();
