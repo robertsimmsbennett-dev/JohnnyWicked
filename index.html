@@ -3246,6 +3246,7 @@
         function gainXp(amount) {
             const wasMessageBoxHidden = messageBox.style.display !== 'block'; // Check if message box was hidden BEFORE processing XP
             player.xp += amount;
+            console.log(`[XP Gain] XP gained: ${amount}, Current XP: ${player.xp}, Next Level XP: ${player.nextLevelXp}`);
             while (player.xp >= player.nextLevelXp) {
                 levelUpQueue.push(true);
                 player.xp -= player.nextLevelXp;
@@ -3254,10 +3255,12 @@
                 player.health = Math.min(player.health + 10, player.maxHealth);
                 player.level++;
                 playSound('levelUp');
+                console.log(`[LEVEL UP] New Level: ${player.level}, XP remaining: ${player.xp}, Next Level XP: ${player.nextLevelXp}. Queue size: ${levelUpQueue.length}`);
             }
             // Only show power selection if there are pending level-ups AND the message box was not already visible
             // This prevents re-triggering the power selection if it's already open or about to open from a previous XP gain in the same frame
             if (levelUpQueue.length > 0 && wasMessageBoxHidden) {
+                console.log(`[Show Power] Calling showPowerSelection from gainXp. Queue size: ${levelUpQueue.length}, wasMessageBoxHidden: ${wasMessageBoxHidden}`);
                 showPowerSelection();
             }
         }
@@ -3277,6 +3280,7 @@
             Tone.Transport.stop(Tone.now()); // Stop music
             messageBox.style.display = 'block';
             powerSelectionDiv.innerHTML = '';
+            console.log("[Show Power] showPowerSelection called.");
         
             const numOptions = 4; // Now showing 4 options
             const availablePowers = POWER_OPTIONS.filter(p => p.level() < MAX_UPGRADE_LEVEL); // Filter based on current upgrade level
@@ -3306,18 +3310,18 @@
         
         function selectPower(power) {
             power.effect();
-            // The increment of player.upgrades[power.id] is now handled within the power.effect()
-            // This ensures that the level() function in POWER_OPTIONS correctly reflects the incremented level
-            // before the next power selection is displayed or the game resumes.
+            console.log(`[Power Select] Power selected: ${power.name}. Before shift, queue size: ${levelUpQueue.length}`);
             
             messageBox.style.display = 'none'; // Hide current message box
             
             // If there are more level-ups pending, immediately show the next power selection
             if (levelUpQueue.length > 0) {
                 levelUpQueue.shift(); // Consume one level-up from the queue
+                console.log(`[Power Select] After shift, queue size: ${levelUpQueue.length}. Calling showPowerSelection again.`);
                 showPowerSelection(); // Show the next power selection screen
             } else {
                 // Only resume game if no more level-ups are pending
+                console.log(`[Power Select] No more level ups pending. Resuming game.`);
                 gameRunning = true;
                 isPaused = false; // Unpause the game
                 if (!isMusicMuted) Tone.Transport.start(Tone.now()); // Resume music if not muted
@@ -3603,8 +3607,8 @@
                     const parts = colorInput.match(/\d+/g).map(Number);
                     if (parts.length >= 3) {
                         r = parts[0];
-                        g = parts[1];
-                        b = parts[2];
+                        g = parts[0];
+                        b = parts[0];
                     }
                 }
             } else {
