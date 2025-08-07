@@ -1108,27 +1108,29 @@
 
             switch(type) {
                 case 'playerShot':
-                    playerSynth.triggerAttackRelease("C4", "8n");
+                    if (playerSynth) playerSynth.triggerAttackRelease("C4", "8n");
                     break;
                 case 'enemyHit':
-                    enemyHitSynth.triggerAttackRelease("16n");
+                    if (enemyHitSynth) enemyHitSynth.triggerAttackRelease("16n");
                     break;
                 case 'levelUp':
-                    levelUpSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n");
+                    if (levelUpSynth) levelUpSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n");
                     break;
                 case 'ultimateActivate':
-                    ultimateSynth.triggerAttackRelease("C3", "2n");
+                    if (ultimateSynth) ultimateSynth.triggerAttackRelease("C3", "2n");
                     break;
                 case 'gameOver':
-                    gameOverSynth.triggerAttackRelease("C2", "8n");
+                    if (gameOverSynth) gameOverSynth.triggerAttackRelease("C2", "8n");
                     break;
                 case 'explosion':
-                    explosionSound.triggerAttackRelease("C3", "0.5");
+                    if (explosionSound) explosionSound.triggerAttackRelease("C3", "0.5");
                     break;
             }
         }
 
         function setupAudio() {
+            // Ensure Tone.js is started (audio context is active)
+            Tone.start();
             Tone.Transport.bpm.value = 120;
 
             playerSynth = new Tone.PolySynth(Tone.Synth, {
@@ -1201,6 +1203,12 @@
         }
 
         function updateMusicPatterns(patternIndex) {
+            // Only create sequences if synths are initialized
+            if (!backgroundMusicSynth || !bassSynth) {
+                console.warn("Synths not initialized for music patterns.");
+                return;
+            }
+
             if (backgroundMusicSequence) {
                 backgroundMusicSequence.stop(Tone.now()); 
                 backgroundMusicSequence.dispose();
@@ -1224,9 +1232,11 @@
             bassSequence.playbackRate = 1;
             bassSequence.humanize = true;
 
+            // Only start transport if game is running and not muted/paused
             if (gameRunning && !isPaused && !isMenuOpen && !isMusicMuted) {
                 backgroundMusicSequence.start(0);
                 bassSequence.start(0);
+                Tone.Transport.start(); // Start transport after sequences are set up
             }
         }
         
@@ -1604,7 +1614,7 @@
                 ctx.fillRect(screenX - s/4, screenY - s*1.5, s/2, s/2);
 
                 ctx.fillStyle = '#5C4033'; 
-                ctx.fillRect(screenX - s/2, screenY - s*1.7, s, s*0.5); 
+                ctx.fillRect(screenX - s*1.7, screenY - s*1.7, s, s*0.5); 
                 ctx.fillRect(screenX + s/4, screenY - s*1.5, s/4, s*0.8); 
 
                 ctx.fillStyle = '#8B0000'; 
@@ -3610,6 +3620,14 @@
         }
         
         function init() {
+            // Start Tone.js audio context immediately
+            Tone.start().then(() => {
+                setupAudio(); // Initialize synths once audio context is ready
+                updateMusicPatterns(0); // Setup initial music patterns
+                // Tone.Transport.start() will be called in startGame() or updateMusicPatterns()
+            }).catch(e => console.error("Error starting Tone.js audio context:", e));
+
+
             canvas.width = gameContainer.clientWidth;
             canvas.height = gameContainer.clientHeight;
             camera.width = canvas.width / camera.zoom;
@@ -3635,8 +3653,6 @@
             });
         
             document.getElementById('startButton').addEventListener('click', () => {
-                Tone.start(); 
-                setupAudio();
                 startGame();
             });
             document.getElementById('restartButton').addEventListener('click', handleRetry);
