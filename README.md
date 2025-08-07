@@ -1,4 +1,4 @@
-🎮 Game Summary
+🎮 Game Summary:
 Johnny Wicked Survivors is an action-packed, top-down survival shooter. You control a character (Johnny) who automatically fires weapons while the player controls movement via clicks or taps. The objective is to survive waves of increasingly dangerous enemies, gain experience (XP), level up, and choose power-ups to become more powerful.
 
 The game features:
