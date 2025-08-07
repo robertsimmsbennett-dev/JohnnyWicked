@@ -739,7 +739,7 @@
         
         let randomChestSpawnTimer = 0; 
         const RANDOM_CHEST_SPAWN_INTERVAL = 5; 
-        const RANDOM_CHEST_SPAWN_CHANCE = 0.01; 
+        const RANDOM_CHEST_SPAWN_CHANCE = 0.011; // Increased by 10% from 0.01
         
         let chests = []; 
         let drones = []; 
@@ -1857,11 +1857,13 @@
             miniMapCtx.arc(miniPlayerX, miniPlayerY, player.size / 2 * miniMapScale, 0, Math.PI * 2);
             miniMapCtx.fill();
 
+            // Draw chests as larger icons on the mini-map
             chests.forEach(chest => {
                 const miniX = chest.x * miniMapScale;
                 const miniY = chest.y * miniMapScale;
+                const chestMiniSize = chest.size * miniMapScale * 1.5; // Make chest icon larger
                 miniMapCtx.fillStyle = '#FFD700'; 
-                miniMapCtx.fillRect(miniX - chest.size / 2 * miniMapScale, miniY - chest.size / 2 * miniMapScale, chest.size * miniMapScale, chest.size * miniMapScale);
+                miniMapCtx.fillRect(miniX - chestMiniSize / 2, miniY - chestMiniSize / 2, chestMiniSize, chestMiniSize);
             });
         }
 
