@@ -806,6 +806,9 @@
                 boomerangSpeed: 400, 
                 burstChargeDamage: 0, 
                 burstChargeProjectileCount: 0,
+                forcefieldActive: false, // NEW: Forcefield active state
+                forcefieldDamage: 0,     // NEW: Forcefield damage
+                forcefieldRadius: 0,     // NEW: Forcefield radius
             },
             upgrades: {
                 damage: 0,
@@ -825,6 +828,7 @@
                 dualUzi: 0,
                 boomerang: 0, 
                 burstCharge: 0, 
+                forcefield: 0,           // NEW: Forcefield upgrade level
             },
             burstChargeCooldown: 5, 
             burstChargeTimer: 0, 
@@ -840,6 +844,8 @@
             vx: 0, 
             vy: 0, 
             currentShootAngle: 0, 
+            forcefieldTimer: 0,      // NEW: Forcefield internal timer
+            forcefieldHitEnemies: new Set(), // NEW: To track enemies hit per tick
         };
 
         // Game control states
@@ -983,6 +989,20 @@
                 player.stats.boomerangCooldown = Math.max(1, 4 - player.upgrades.boomerang * 0.5); 
               },
               next: () => `Launch ${1 + Math.floor((player.upgrades.boomerang + 1) / 2)} boomerangs. Cooldown: ${(Math.max(1, 4 - (player.upgrades.boomerang + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.boomerang + 1}/${MAX_UPGRADE_LEVEL})`,
+            },
+            // NEW: Forcefield ability
+            { id: 'forcefield', name: 'Forcefield', description: 'Creates an energy shield that damages nearby enemies and protects you.',
+              level: () => player.upgrades.forcefield,
+              effect: () => {
+                player.upgrades.forcefield++;
+                player.stats.forcefieldActive = true; // Activate forcefield
+                player.stats.forcefieldDamage = 5 + player.upgrades.forcefield * 5; // Base damage + scaling
+                player.stats.forcefieldRadius = 50 + player.upgrades.forcefield * 10; // Base radius + scaling
+                player.stats.damageReduction = Math.min(0.8, player.stats.damageReduction + 0.02); // Small passive damage reduction
+                player.forcefieldTimer = 0; // Reset timer for damage ticks
+                player.forcefieldHitEnemies.clear(); // Clear hit enemies on upgrade
+              },
+              next: () => `Creates a forcefield (Radius: ${50 + (player.upgrades.forcefield + 1) * 10}, Damage: ${5 + (player.upgrades.forcefield + 1) * 5}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`,
             }
         ];
         
@@ -1266,6 +1286,10 @@
             drawBoomerangs(); 
             if (ultimateActive) {
                 drawUltimateEffect();
+            }
+            // NEW: Draw Forcefield
+            if (player.stats.forcefieldActive) {
+                drawForcefield();
             }
             drawDamageNumbers();
             drawParticles(); 
@@ -1790,6 +1814,23 @@
             ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); 
         }
 
+        // NEW: Draw Forcefield
+        function drawForcefield() {
+            const screenX = player.x - camera.x;
+            const screenY = player.y - camera.y;
+            const pulse = 1 + 0.1 * Math.sin(survivalTime * 5); // Pulsating effect
+            const currentRadius = player.stats.forcefieldRadius * pulse;
+
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, currentRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(0, 255, 255, ${0.7 * (1 - Math.abs(Math.sin(survivalTime * 2)) * 0.2)})`; // Pulsating opacity
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.fillStyle = `rgba(0, 255, 255, ${0.1 * (1 - Math.abs(Math.sin(survivalTime * 2)) * 0.2)})`; // Pulsating fill
+            ctx.fill();
+        }
+
         function drawUI() {
             scoreDisplay.textContent = `Score: ${score}`;
             const minutes = Math.floor(survivalTime / 60);
@@ -1933,7 +1974,7 @@
                         miniX - heartMiniSize * 1.0, miniY - heartMiniSize * 0.7,
                         miniX - heartMiniSize * 0.5, miniY + heartMiniSize * 0.3
                     );
-                    miniMapCtx.closePath();
+                    ctx.closePath();
                     miniMapCtx.fill();
                 }
             });
@@ -1967,7 +2008,7 @@
 
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
-                { id: 'the_park', name: 'The Park', unlockScore: 6000, description: 'A green oasis, full of danger.' }
+                { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' } // MODIFIED: Unlock score set to 0
             ];
 
             levels.forEach(level => {
@@ -1976,7 +2017,8 @@
                 card.innerHTML = `<h3>${level.name}</h3><p>${level.description}</p>`;
 
                 let isLocked = false;
-                if (level.id === 'the_park' && highestHotelLobbyScore < level.unlockScore) {
+                // Only show lock info if unlockScore is greater than 0
+                if (level.id === 'the_park' && level.unlockScore > 0 && highestHotelLobbyScore < level.unlockScore) {
                     isLocked = true;
                     card.classList.add('locked');
                     const unlockInfo = document.createElement('p');
@@ -3496,6 +3538,13 @@
             temporaryPowerupType = '';
             lastUziSoundTime = 0;
 
+            // Reset forcefield specific stats
+            player.stats.forcefieldActive = false;
+            player.stats.forcefieldDamage = 0;
+            player.stats.forcefieldRadius = 0;
+            player.forcefieldTimer = 0;
+            player.forcefieldHitEnemies.clear();
+
 
             updateMusicPatterns(currentMusicPatternIndex);
         }
@@ -3600,6 +3649,32 @@
                 knife.x = player.x + Math.cos(knife.angle) * knife.radius;
                 knife.y = player.y + Math.sin(knife.angle) * knife.radius;
             });
+
+            // NEW: Forcefield damage application
+            if (player.stats.forcefieldActive) {
+                player.forcefieldTimer += effectiveDt;
+                const forcefieldTickInterval = 0.5; // Damage every 0.5 seconds
+                if (player.forcefieldTimer >= forcefieldTickInterval) {
+                    enemies.forEach(enemy => {
+                        if (!enemy.controlled && dist(player, enemy) < player.stats.forcefieldRadius + enemy.size / 2) {
+                            // Only hit if not already hit this tick
+                            if (!player.forcefieldHitEnemies.has(enemy)) {
+                                const damageDealt = player.stats.forcefieldDamage;
+                                enemy.health -= damageDealt;
+                                ultimateCharge += ultimateChargePerHit;
+                                showDamageNumber(damageDealt, enemy.x, enemy.y);
+                                if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
+                                    playSound('enemyHit');
+                                    lastEnemyHitSoundTime = survivalTime;
+                                }
+                                player.forcefieldHitEnemies.add(enemy);
+                            }
+                        }
+                    });
+                    player.forcefieldTimer = 0;
+                    player.forcefieldHitEnemies.clear(); // Reset for next tick
+                }
+            }
 
             if (ultimateActive) {
                 ultimateDuration -= effectiveDt;
@@ -3961,7 +4036,10 @@
                 shotgunPellets: 0, shotgunDamage: 0, shotgunSpread: 0,
                 dualUziActive: false, dualUziFireRate: 0, dualUziDamage: 0,
                 boomerangDamage: 0, boomerangCount: 0, boomerangCooldown: 4, boomerangRange: 150, boomerangSpeed: 400,
-                burstChargeDamage: 0, burstChargeProjectileCount: 0
+                burstChargeDamage: 0, burstChargeProjectileCount: 0,
+                forcefieldActive: false, // NEW: Reset forcefield stats
+                forcefieldDamage: 0,
+                forcefieldRadius: 0,
             };
             player.upgrades = {
                 damage: 0, attackSpeed: 0, health: 0, speed: 0, pierce: 0, multiShot: 0, 
@@ -3969,7 +4047,8 @@
                 ultimateRecharge: 0, burstShot: 0,
                 spinningKnives: 0, 
                 combatDrone: 0, shotgun: 0, dualUzi: 0,
-                boomerang: 0, burstCharge: 0
+                boomerang: 0, burstCharge: 0,
+                forcefield: 0, // NEW: Reset forcefield upgrade level
             };
             player.burstChargeCooldown = 5; 
             player.burstChargeTimer = 0; 
@@ -3983,6 +4062,8 @@
             lastShotSoundTime = 0;
             lastEnemyHitSoundTime = 0;
             lastUziSoundTime = 0; 
+            player.forcefieldTimer = 0; // NEW: Reset forcefield timer
+            player.forcefieldHitEnemies.clear(); // NEW: Clear hit enemies set
 
             currentMusicPatternIndex = 0;
             musicPatternTimer = 0;
