@@ -151,7 +151,7 @@
             background: linear-gradient(90deg, #ffcc00, #ff6600);
         }
 
-        #message-box, .menu, #level-select-menu { /* Apply menu styles to message-box, game-menu, and level-select-menu */
+        #message-box, .menu, #level-select-menu, #character-select-menu { /* Apply menu styles to message-box, game-menu, level-select-menu, and character-select-menu */
             position: absolute;
             top: 50%;
             left: 50%;
@@ -176,7 +176,7 @@
             margin-top: 20px;
         }
 
-        .power-card {
+        .power-card, .character-card {
             background-color: rgba(255, 255, 255, 0.05);
             border: 1px solid #00ffff;
             padding: 15px;
@@ -188,25 +188,25 @@
             pointer-events: all;
         }
         
-        .power-card:hover {
+        .power-card:hover, .character-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
         }
         
-        .power-card h4 {
+        .power-card h4, .character-card h3 {
             margin-top: 0;
             color: #00ffff;
             display: flex;
             justify-content: space-between;
         }
         
-        .power-card p {
+        .power-card p, .character-card p {
             font-size: 0.9em;
             margin-bottom: 0;
         }
 
         /* General menu button styles */
-        .menu button, .control-button, #level-select-menu button { 
+        .menu button, .control-button, #level-select-menu button, #character-select-menu button { 
             background: linear-gradient(45deg, #ff0000, #990000);
             color: #d1d1d1;
             border: none;
@@ -221,7 +221,7 @@
             white-space: nowrap; /* Prevent text wrapping */
         }
         
-        .menu button:hover, .control-button:hover, #level-select-menu button:hover {
+        .menu button:hover, .control-button:hover, #level-select-menu button:hover, #character-select-menu button:hover {
             transform: translateY(-3px) scale(1.05);
             box-shadow: 0 8px 20px rgba(255, 0, 0, 0.6);
         }
@@ -523,6 +523,24 @@
             </div>
             <button id="backToMainMenuButton">Back</button>
         </div>
+
+        <!-- Character Select Menu -->
+        <div id="character-select-menu" class="menu" style="display: none;">
+            <h1>Select Your Survivor</h1>
+            <div id="character-options" style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 20px;">
+                <div class="character-card" data-character="johnny">
+                    <h3>Johnny Wicked</h3>
+                    <p>Classic survivor, balanced abilities.</p>
+                    <p>Starting Weapon: Pistol</p>
+                </div>
+                <div class="character-card" data-character="dixie">
+                    <h3>Dixie</h3>
+                    <p>Dog whisperer, commands loyal companions.</p>
+                    <p>Starting Weapon: Twin Uzis + 1 Dog Ally</p>
+                </div>
+            </div>
+            <button id="backToStartMenuFromCharSelect">Back</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
@@ -701,6 +719,9 @@
         const levelOptionsDiv = document.getElementById('level-options'); // New
         const backToMainMenuButton = document.getElementById('backToMainMenuButton'); // New
         const backToMainMenuButtonFromGame = document.getElementById('backToMainMenuButtonFromGame'); // New
+        const characterSelectMenu = document.getElementById('character-select-menu'); // NEW
+        const characterOptionsDiv = document.getElementById('character-options'); // NEW
+        const backToStartMenuFromCharSelect = document.getElementById('backToStartMenuFromCharSelect'); // NEW
 
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
@@ -733,8 +754,6 @@
         let bulletTimeActive = false; 
         let bulletTimeDuration = 0; 
         let spinningKnives = []; 
-        let femaleAlly = null; 
-        let allyDogs = []; 
         let temporaryPowerupActive = false; 
         let temporaryPowerupDuration = 0;
         let temporaryPowerupType = '';
@@ -771,6 +790,7 @@
             targetY: initialPlayerY,
             size: 20,
             color: '#6A808C', 
+            baseColor: '#6A808C', // NEW: Store base color for character
             speed: 300, 
             health: 100,
             maxHealth: 100,
@@ -806,9 +826,10 @@
                 boomerangSpeed: 400, 
                 burstChargeDamage: 0, 
                 burstChargeProjectileCount: 0,
-                forcefieldActive: false, // NEW: Forcefield active state
-                forcefieldDamage: 0,     // NEW: Forcefield damage
-                forcefieldRadius: 0,     // NEW: Forcefield radius
+                forcefieldActive: false, 
+                forcefieldDamage: 0,     
+                forcefieldRadius: 0,     
+                leashWhipDamage: 0,      
             },
             upgrades: {
                 damage: 0,
@@ -828,7 +849,12 @@
                 dualUzi: 0,
                 boomerang: 0, 
                 burstCharge: 0, 
-                forcefield: 0,           // NEW: Forcefield upgrade level
+                forcefield: 0,           
+                dogPack: 0,              
+                dogBones: 0,             
+                leashWhip: 0,            
+                dogStrength: 0,          
+                dogSpeed: 0,             
             },
             burstChargeCooldown: 5, 
             burstChargeTimer: 0, 
@@ -844,8 +870,9 @@
             vx: 0, 
             vy: 0, 
             currentShootAngle: 0, 
-            forcefieldTimer: 0,      // NEW: Forcefield internal timer
-            forcefieldHitEnemies: new Set(), // NEW: To track enemies hit per tick
+            forcefieldTimer: 0,      
+            forcefieldHitEnemies: new Set(), 
+            leashWhipTimer: 0,       
         };
 
         // Game control states
@@ -859,6 +886,12 @@
         // Level management
         let currentLevelId = 'hotel_lobby'; // Default starting level
         let highestHotelLobbyScore = 0; // User's highest score for hotel lobby, loaded from Firebase
+        let currentCharacter = 'johnny'; // NEW: Default character
+
+        // Dog specific projectile stats (for Dixie)
+        let allyDogs = []; // NEW: Moved here to be persistent
+        let dogProjectileDamage = 0;
+        let dogProjectileSpeed = 0;
 
         // Enemy and power-up configuration
         const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull', 'enforcer']; 
@@ -868,41 +901,49 @@
               level: () => player.upgrades.damage,
               effect: () => player.stats.damage += 10,
               next: () => `Increase projectile damage by 10. (Lvl ${player.upgrades.damage + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'attackSpeed', name: 'Increase Attack Speed', description: 'Increases the number of projectiles fired per second.',
               level: () => player.upgrades.attackSpeed,
               effect: () => player.stats.attackSpeed += 2,
               next: () => `Increase fire rate by 2. (Lvl ${player.upgrades.attackSpeed + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'health', name: 'Increase Health', description: 'Increases max health and heals you.', 
               level: () => player.upgrades.health,
               effect: () => { player.maxHealth += 25; player.health = Math.min(player.health + 25, player.maxHealth); },
               next: () => `Increase max health by 25 and heal. (Lvl ${player.upgrades.health + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'speed', name: 'Increase Speed', description: 'Increases player movement speed.',
               level: () => player.upgrades.speed,
               effect: () => player.speed += 50,
               next: () => `Increase speed by 50. (Lvl ${player.upgrades.speed + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'pierce', name: 'Pierce Shot', description: 'Your projectiles can hit multiple enemies.',
               level: () => player.upgrades.pierce,
               effect: () => player.stats.pierce++,
               next: () => `Projectiles can hit one more enemy. (Lvl ${player.upgrades.pierce + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'multiShot', name: 'Multi-shot', description: 'Fire multiple projectiles at once.', 
               level: () => player.upgrades.multiShot,
               effect: () => player.stats.multiShot++,
               next: () => `Fire one more projectile per shot. (Lvl ${player.upgrades.multiShot + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'healthRegen', name: 'Health Regen', description: 'Gain passive health regeneration.', 
               level: () => player.upgrades.healthRegen,
               effect: () => player.stats.healthRegen += 0.5,
               next: () => `Increase health regen by 0.5/s. (Lvl ${player.upgrades.healthRegen + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'magnet', name: 'Magnet Range', description: 'Increases the range for collecting XP.',
               level: () => player.upgrades.magnet,
               effect: () => player.stats.magnet += 20,
               next: () => `Increase magnet range by 20. (Lvl ${player.upgrades.magnet + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'bulletproofSuit', name: 'Bulletproof Suit', description: 'Reduces damage taken from all sources.',
               level: () => player.upgrades.bulletproofSuit,
@@ -911,6 +952,7 @@
                 player.stats.damageReduction = Math.min(0.8, player.upgrades.bulletproofSuit * 0.05); 
               },
               next: () => `Reduce damage taken by ${((player.upgrades.bulletproofSuit + 1) * 5).toFixed(0)}%. (Lvl ${player.upgrades.bulletproofSuit + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'burstCharge', name: 'Burst Charge', description: 'Unleashes a slow, wide arc of projectiles automatically.', 
               level: () => player.upgrades.burstCharge,
@@ -922,11 +964,13 @@
                 player.burstChargeTimer = 0; 
               },
               next: () => `Fires ${5 + (player.upgrades.burstCharge + 1) * 2} projectiles in a wide arc. Cooldown: ${(Math.max(1, 5 - (player.upgrades.burstCharge + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.burstCharge + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'ultimateRecharge', name: 'Ultimate Recharge Speed', description: 'The ultimate ability recharges faster.',
               level: () => player.upgrades.ultimateRecharge,
               effect: () => ultimateChargePerHit += 0.2,
               next: () => `Ultimate charges faster per hit. (Lvl ${player.upgrades.ultimateRecharge + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'burstShot', name: 'Multi-shot Burst', description: 'Fires a burst of projectiles in a circle.',
               level: () => player.upgrades.burstShot,
@@ -936,6 +980,7 @@
                 player.burstCooldown = 1 - (player.upgrades.burstShot * 0.1);
               },
               next: () => `Fires a circle of projectiles. (Lvl ${player.upgrades.burstShot + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'spinningKnives', name: 'Spinning Knives', description: 'Summon knives that orbit you, damaging enemies.',
               level: () => player.upgrades.spinningKnives,
@@ -946,6 +991,7 @@
                 updateSpinningKnivesEffect();
               },
               next: () => `Summon ${player.upgrades.spinningKnives + 1} spinning knives. (Lvl ${player.upgrades.spinningKnives + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'combatDrone', name: 'Combat Drone', description: 'Summon a drone that fires at enemies. Stacks.',
               level: () => player.upgrades.combatDrone,
@@ -957,6 +1003,7 @@
                 updateDronesEffect(); 
               },
               next: () => `Summon ${player.upgrades.combatDrone + 1} combat drone(s). (Lvl ${player.upgrades.combatDrone + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             { id: 'shotgun', name: 'Shotgun', description: 'Fires a spray of powerful, short-range pellets.', 
               level: () => player.upgrades.shotgun,
@@ -968,6 +1015,7 @@
                 player.shotgunTimer = 0; 
               },
               next: () => `Fires ${5 + (player.upgrades.shotgun + 1) * 2} pellets with a short range. (Lvl ${player.upgrades.shotgun + 1}/${MAX_UPGRADE_LEVEL})`, 
+              characters: ['johnny'] 
             },
             { id: 'dualUzi', name: 'Dual Uzis', description: 'Fires two continuous streams of bullets.',
               level: () => player.upgrades.dualUzi,
@@ -979,6 +1027,7 @@
                 player.dualUziTimer = 0; 
               },
               next: () => `Fires two streams at ${8 + (player.upgrades.dualUzi + 1) * 4} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'boomerang', name: 'Boomerang', description: 'Launches a spinning boomerang that hits enemies and returns.',
               level: () => player.upgrades.boomerang,
@@ -989,20 +1038,65 @@
                 player.stats.boomerangCooldown = Math.max(1, 4 - player.upgrades.boomerang * 0.5); 
               },
               next: () => `Launch ${1 + Math.floor((player.upgrades.boomerang + 1) / 2)} boomerangs. Cooldown: ${(Math.max(1, 4 - (player.upgrades.boomerang + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.boomerang + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny'] 
             },
             // NEW: Forcefield ability
             { id: 'forcefield', name: 'Forcefield', description: 'Creates an energy shield that damages nearby enemies and protects you.',
               level: () => player.upgrades.forcefield,
               effect: () => {
                 player.upgrades.forcefield++;
-                player.stats.forcefieldActive = true; // Activate forcefield
-                player.stats.forcefieldDamage = 5 + player.upgrades.forcefield * 5; // Base damage + scaling
-                player.stats.forcefieldRadius = 50 + player.upgrades.forcefield * 10; // Base radius + scaling
-                player.stats.damageReduction = Math.min(0.8, player.stats.damageReduction + 0.02); // Small passive damage reduction
-                player.forcefieldTimer = 0; // Reset timer for damage ticks
-                player.forcefieldHitEnemies.clear(); // Clear hit enemies on upgrade
+                player.stats.forcefieldActive = true; 
+                player.stats.forcefieldDamage = 5 + player.upgrades.forcefield * 5; 
+                player.stats.forcefieldRadius = 50 + player.upgrades.forcefield * 10; 
+                player.stats.damageReduction = Math.min(0.8, player.stats.damageReduction + 0.02); 
+                player.forcefieldTimer = 0; 
+                player.forcefieldHitEnemies.clear(); 
               },
               next: () => `Creates a forcefield (Radius: ${50 + (player.upgrades.forcefield + 1) * 10}, Damage: ${5 + (player.upgrades.forcefield + 1) * 5}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] 
+            },
+            // NEW: Dog Pack ability (Dixie only)
+            { id: 'dogPack', name: 'Dog Pack', description: 'Summon an additional loyal dog ally.',
+              level: () => player.upgrades.dogPack,
+              effect: () => { player.upgrades.dogPack++; addAllyDog(); },
+              next: () => `Summon another dog ally. (Lvl ${player.upgrades.dogPack + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['dixie'] 
+            },
+            // NEW: Dog Bones ability (Dixie only)
+            { id: 'dogBones', name: 'Dog Bones', description: 'Your dog allies shoot bone projectiles.',
+              level: () => player.upgrades.dogBones,
+              effect: () => { 
+                player.upgrades.dogBones++; 
+                dogProjectileDamage = 10 + player.upgrades.dogBones * 5; 
+                dogProjectileSpeed = 300 + player.upgrades.dogBones * 50; 
+              },
+              next: () => `Dogs shoot bones for ${10 + (player.upgrades.dogBones + 1) * 5} damage. (Lvl ${player.upgrades.dogBones + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['dixie'] 
+            },
+            // NEW: Leash Whip ability (Dixie only)
+            { id: 'leashWhip', name: 'Leash Whip', description: 'Dixie performs a short-range whip attack.',
+              level: () => player.upgrades.leashWhip,
+              effect: () => { 
+                player.upgrades.leashWhip++; 
+                player.stats.leashWhipDamage = 20 + player.upgrades.leashWhip * 10; 
+                player.leashWhipCooldown = Math.max(0.5, 2 - player.upgrades.leashWhip * 0.2); 
+              },
+              next: () => `Unleash a whip dealing ${20 + (player.upgrades.leashWhip + 1) * 10} damage. Cooldown: ${(Math.max(0.5, 2 - (player.upgrades.leashWhip + 1) * 0.2)).toFixed(1)}s. (Lvl ${player.upgrades.leashWhip + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['dixie'] 
+            },
+            // NEW: Dog Strength (Dixie only)
+            { id: 'dogStrength', name: 'Dog Strength', description: 'Increases the damage of your dog allies.',
+              level: () => player.upgrades.dogStrength,
+              effect: () => { player.upgrades.dogStrength++; allyDogs.forEach(dog => dog.damage += 5); },
+              next: () => `Increase dog melee damage by 5. (Lvl ${player.upgrades.dogStrength + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['dixie'] 
+            },
+            // NEW: Dog Speed (Dixie only)
+            { id: 'dogSpeed', name: 'Dog Speed', description: 'Increases the movement speed of your dog allies.',
+              level: () => player.upgrades.dogSpeed,
+              effect: () => { player.upgrades.dogSpeed++; allyDogs.forEach(dog => dog.speed += 20); },
+              next: () => `Increase dog movement speed by 20. (Lvl ${player.upgrades.dogSpeed + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['dixie'] 
             }
         ];
         
@@ -1281,7 +1375,7 @@
             drawEnemies();
             drawPlayer();
             drawSpinningKnives(); 
-            drawFemaleAllyAndDogs(); 
+            drawAllyDogs(); // Renamed from drawAllyCreatures
             drawDrones(); 
             drawBoomerangs(); 
             if (ultimateActive) {
@@ -1375,19 +1469,45 @@
 
                 ctx.fillStyle = player.color; 
 
-                // Left Arm
-                ctx.save();
-                ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
-                ctx.rotate(player.currentShootAngle);
-                ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
-                ctx.restore();
+                // If Dixie and dualUziActive, draw smaller arms or different gun style
+                if (currentCharacter === 'dixie' && player.stats.dualUziActive) {
+                    const uziSize = s * 0.4;
+                    const uziOffset = s * 0.6; // Offset from center for dual uzis
 
-                // Right Arm
-                ctx.save();
-                ctx.translate(screenX + shoulderXOffset, screenY - shoulderYOffset);
-                ctx.rotate(player.currentShootAngle);
-                ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
-                ctx.restore();
+                    // Left Uzi
+                    ctx.save();
+                    ctx.translate(screenX - uziOffset, screenY - s * 0.8);
+                    ctx.rotate(player.currentShootAngle);
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); // Gun body
+                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); // Barrel
+                    ctx.restore();
+
+                    // Right Uzi
+                    ctx.save();
+                    ctx.translate(screenX + uziOffset, screenY - s * 0.8);
+                    ctx.rotate(player.currentShootAngle);
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); // Gun body
+                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); // Barrel
+                    ctx.restore();
+
+                } else {
+                    // Default arms for Johnny or if Dixie doesn't have dual uzis yet
+                    // Left Arm
+                    ctx.save();
+                    ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
+                    ctx.rotate(player.currentShootAngle);
+                    ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
+                    ctx.restore();
+
+                    // Right Arm
+                    ctx.save();
+                    ctx.translate(screenX + shoulderXOffset, screenY - shoulderYOffset);
+                    ctx.rotate(player.currentShootAngle);
+                    ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
+                    ctx.restore();
+                }
 
             } else {
                 ctx.fillStyle = '#d1d1d1';
@@ -1497,14 +1617,8 @@
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s*1.5);
                     ctx.fillStyle = '#1a1a1a'; 
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s/4);
-                } else if (enemy.type === 'enemyDog') {
-                    ctx.fillStyle = enemy.color; 
-                    ctx.beginPath();
-                    ctx.ellipse(screenX, screenY + s * 0.1, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(screenX + s * 0.4, screenY - s * 0.2, s * 0.3, 0, Math.PI * 2);
-                    ctx.fill();
+                } else if (enemy.type === 'enemyDog') { // This is for enemy dogs
+                    drawDogPixelArt(ctx, enemy, screenX, screenY, s);
                 } else if (enemy.type === 'enemyDrone') {
                     ctx.fillStyle = enemy.color; 
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s); 
@@ -1531,6 +1645,33 @@
                 ctx.textBaseline = 'bottom';
                 ctx.fillText('A', screenX, screenY - s * 2); 
             }
+        }
+
+        // NEW: Function to draw dog pixel art (for both ally and enemy dogs)
+        function drawDogPixelArt(ctx, dog, screenX, screenY, s) {
+            ctx.fillStyle = dog.color; 
+            ctx.beginPath();
+            ctx.ellipse(screenX, screenY + s * 0.1, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(screenX + s * 0.4, screenY - s * 0.2, s * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(screenX + s * 0.3, screenY - s * 0.4);
+            ctx.lineTo(screenX + s * 0.5, screenY - s * 0.6);
+            ctx.lineTo(screenX + s * 0.6, screenY - s * 0.3);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(screenX - s * 0.6, screenY + s * 0.1);
+            ctx.lineTo(screenX - s * 0.8, screenY - s * 0.1);
+            ctx.lineTo(screenX - s * 0.7, screenY + s * 0.2);
+            ctx.fill();
+
+            ctx.fillRect(screenX - s * 0.4, screenY + s * 0.4, s * 0.15, s * 0.3);
+            ctx.fillRect(screenX + s * 0.2, screenY + s * 0.4, s * 0.15, s * 0.3);
         }
         
         function drawPlayer() {
@@ -1656,58 +1797,8 @@
             });
         }
 
-        function drawFemaleAllyAndDogs() {
-            if (femaleAlly) {
-                const s = femaleAlly.size;
-                const screenX = femaleAlly.x - camera.x;
-                const screenY = femaleAlly.y - camera.y;
-
-                ctx.save(); 
-                ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; 
-                ctx.shadowBlur = 15; 
-                ctx.fillStyle = '#00ff66'; 
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, s * 0.7, 0, Math.PI * 2); 
-                ctx.fill();
-                ctx.restore(); 
-
-                // Female character pixel art
-                ctx.fillStyle = '#f0c8a0'; 
-                ctx.fillRect(screenX - s/4, screenY - s*1.5, s/2, s/2);
-
-                ctx.fillStyle = '#5C4033'; 
-                ctx.fillRect(screenX - s*1.7, screenY - s*1.7, s, s*0.5); 
-                ctx.fillRect(screenX + s/4, screenY - s*1.5, s/4, s*0.8); 
-
-                ctx.fillStyle = '#8B0000'; 
-                ctx.fillRect(screenX - s/3, screenY - s, s*2/3, s*1.8); 
-
-                const armLength = s * 0.6;
-                const armWidth = s * 0.2;
-                const shoulderXOffset = s * 0.3;
-                const shoulderYOffset = s * 0.5;
-
-                ctx.fillStyle = '#8B0000'; 
-
-                ctx.save();
-                ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
-                ctx.rotate(femaleAlly.currentShootAngle);
-                ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
-                ctx.restore();
-
-                ctx.save();
-                ctx.translate(screenX + shoulderXOffset, screenY - shoulderYOffset);
-                ctx.rotate(femaleAlly.currentShootAngle);
-                ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
-                ctx.restore();
-
-                ctx.fillStyle = '#00ff66'; 
-                ctx.font = 'bold 16px Chakra Petch'; 
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                ctx.fillText('A', screenX, screenY - s * 2); 
-            }
-
+        // Renamed from drawAllyCreatures to drawAllyDogs
+        function drawAllyDogs() {
             allyDogs.forEach(dog => {
                 const s = dog.size;
                 const screenX = dog.x - camera.x;
@@ -1722,29 +1813,7 @@
                 ctx.fill();
                 ctx.restore(); 
 
-                ctx.fillStyle = '#8B4513'; 
-                ctx.beginPath();
-                ctx.ellipse(screenX, screenY + s * 0.1, s * 0.6, s * 0.4, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.arc(screenX + s * 0.4, screenY - s * 0.2, s * 0.3, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(screenX + s * 0.3, screenY - s * 0.4);
-                ctx.lineTo(screenX + s * 0.5, screenY - s * 0.6);
-                ctx.lineTo(screenX + s * 0.6, screenY - s * 0.3);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(screenX - s * 0.6, screenY + s * 0.1);
-                ctx.lineTo(screenX - s * 0.8, screenY - s * 0.1);
-                ctx.lineTo(screenX - s * 0.7, screenY + s * 0.2);
-                ctx.fill();
-
-                ctx.fillRect(screenX - s * 0.4, screenY + s * 0.4, s * 0.15, s * 0.3);
-                ctx.fillRect(screenX + s * 0.2, screenY + s * 0.4, s * 0.15, s * 0.3);
+                drawDogPixelArt(ctx, dog, screenX, screenY, s);
 
                 ctx.fillStyle = '#00ff66'; 
                 ctx.font = 'bold 16px Chakra Petch'; 
@@ -1985,6 +2054,7 @@
             gameOverMenu.style.display = 'none';
             gameMenu.style.display = 'none'; 
             levelSelectMenu.style.display = 'none'; 
+            characterSelectMenu.style.display = 'none'; 
         }
         
         function showGameOverMenu() {
@@ -1992,6 +2062,7 @@
             gameOverMenu.style.display = 'block';
             gameMenu.style.display = 'none'; 
             levelSelectMenu.style.display = 'none'; 
+            characterSelectMenu.style.display = 'none'; 
         }
 
         function showLevelSelectMenu() {
@@ -2000,7 +2071,18 @@
             gameMenu.style.display = 'none';
             messageBox.style.display = 'none';
             levelSelectMenu.style.display = 'block';
+            characterSelectMenu.style.display = 'none'; 
             populateLevelOptions();
+        }
+
+        // NEW: Show Character Select Menu
+        function showCharacterSelectMenu() {
+            startMenu.style.display = 'none';
+            gameOverMenu.style.display = 'none';
+            gameMenu.style.display = 'none';
+            messageBox.style.display = 'none';
+            levelSelectMenu.style.display = 'none';
+            characterSelectMenu.style.display = 'block';
         }
 
         function populateLevelOptions() {
@@ -2008,7 +2090,7 @@
 
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
-                { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' } // MODIFIED: Unlock score set to 0
+                { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' } 
             ];
 
             levels.forEach(level => {
@@ -2030,7 +2112,7 @@
                 if (!isLocked) {
                     card.addEventListener('click', () => {
                         currentLevelId = level.id;
-                        startGame();
+                        showCharacterSelectMenu(); // Go to character select after level selection
                     });
                 }
                 levelOptionsDiv.appendChild(card);
@@ -2125,7 +2207,8 @@
                 }
             }
         
-            if (shootTimer >= 1 / player.stats.attackSpeed) {
+            // Johnny's default attack (pistol)
+            if (currentCharacter === 'johnny' && shootTimer >= 1 / player.stats.attackSpeed) {
                 const closestEnemy = findClosestEnemy();
                 
                 if (closestEnemy) {
@@ -2226,6 +2309,7 @@
                 }
             }
 
+            // Dual Uzi logic (for both Johnny and Dixie if upgraded/default)
             if (player.stats.dualUziActive) {
                 player.dualUziTimer += effectiveDt;
                 const uziCooldown = 1 / player.stats.dualUziFireRate;
@@ -2296,6 +2380,31 @@
                     player.boomerangTimer = 0;
                 }
             }
+
+            // NEW: Leash Whip ability for Dixie
+            if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) {
+                player.leashWhipTimer += effectiveDt;
+                if (player.leashWhipTimer >= player.leashWhipCooldown) {
+                    const enemiesInWhipRange = enemies.filter(enemy => 
+                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 50 + enemy.size / 2) // 50 is whip range
+                    );
+                    if (enemiesInWhipRange.length > 0) {
+                        enemiesInWhipRange.forEach(enemy => {
+                            const damageDealt = player.stats.leashWhipDamage;
+                            enemy.health -= damageDealt;
+                            ultimateCharge += ultimateChargePerHit;
+                            showDamageNumber(damageDealt, enemy.x, enemy.y);
+                            if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
+                                playSound('enemyHit');
+                                lastEnemyHitSoundTime = survivalTime;
+                            }
+                            spawnParticles(enemy.x, enemy.y, {r: 150, g: 75, b: 0}); // Brown/whip color
+                        });
+                        playSound('playerShot'); // Use a generic shot sound for whip for now
+                    }
+                    player.leashWhipTimer = 0;
+                }
+            }
         }
 
         function findClosestEnemy() {
@@ -2315,7 +2424,9 @@
         function activateUltimate() {
             ultimateActive = true;
             ultimateDuration = 1.5; 
-            player.color = '#ff6600'; 
+            if (currentCharacter === 'johnny') { // Only change color for Johnny
+                player.color = '#ff6600'; 
+            }
             ultimateCharge = 0;
             playSound('ultimateActivate');
 
@@ -2725,60 +2836,8 @@
             }
         }
 
-        function updateFemaleAllyAndDogs(dt) {
-            if (femaleAlly) {
-                const effectiveDt = dt * gameSpeedMultiplier;
-                const closestEnemy = enemies.find(e => !e.controlled); 
-
-                if (closestEnemy) {
-                    const angle = Math.atan2(closestEnemy.y - femaleAlly.y, closestEnemy.x - femaleAlly.x);
-                    femaleAlly.currentShootAngle = angle; 
-
-                    const distanceToEnemy = dist(femaleAlly, closestEnemy);
-                    const desiredDistance = 150; 
-                    if (distanceToEnemy > desiredDistance) {
-                        femaleAlly.x += Math.cos(angle) * femaleAlly.speed * effectiveDt;
-                        femaleAlly.y += Math.sin(angle) * femaleAlly.speed * effectiveDt;
-                    } else if (distanceToEnemy < desiredDistance * 0.8) { 
-                        femaleAlly.x -= Math.cos(angle) * femaleAlly.speed * effectiveDt;
-                        femaleAlly.y -= Math.sin(angle) * femaleAlly.speed * effectiveDt;
-                    }
-
-                    femaleAlly.shootTimer += effectiveDt;
-                    if (femaleAlly.shootTimer >= 1 / femaleAlly.attackSpeed) {
-                        const offset = 5; 
-                        projectiles.push({
-                            x: femaleAlly.x + Math.cos(angle - Math.PI/2) * offset,
-                            y: femaleAlly.y + Math.sin(angle - Math.PI/2) * offset,
-                            vx: Math.cos(angle) * femaleAlly.projectileSpeed,
-                            vy: Math.sin(angle) * femaleAlly.projectileSpeed,
-                            size: femaleAlly.projectileSize,
-                            damage: femaleAlly.damage,
-                            color: '#FFC0CB', 
-                            pierce: femaleAlly.pierce,
-                            hits: 0
-                        });
-                        projectiles.push({
-                            x: femaleAlly.x + Math.cos(angle + Math.PI/2) * offset,
-                            y: femaleAlly.y + Math.sin(angle + Math.PI/2) * offset,
-                            vx: Math.cos(angle) * femaleAlly.projectileSpeed,
-                            vy: Math.sin(angle) * femaleAlly.projectileSpeed,
-                            size: femaleAlly.projectileSize,
-                            damage: femaleAlly.damage,
-                            color: '#FFC0CB', 
-                            pierce: femaleAlly.pierce,
-                            hits: 0
-                        });
-                        playSound('playerShot'); 
-                        femaleAlly.shootTimer = 0;
-                    }
-                } else {
-                    const angle = Math.atan2(player.y - femaleAlly.y, player.x - femaleAlly.x);
-                    femaleAlly.x += Math.cos(angle) * femaleAlly.speed * effectiveDt;
-                    femaleAlly.y += Math.sin(angle) * femaleAlly.speed * effectiveDt;
-                }
-            }
-
+        // Renamed from updateAllyCreatures to updateAllyDogs
+        function updateAllyDogs(dt) {
             allyDogs.forEach(dog => {
                 const effectiveDt = dt * gameSpeedMultiplier;
                 const closestEnemy = enemies.find(e => !e.controlled); 
@@ -2788,6 +2847,7 @@
                     dog.x += Math.cos(angle) * dog.speed * effectiveDt;
                     dog.y += Math.sin(angle) * dog.speed * effectiveDt;
 
+                    // Dog melee attack
                     if (dist(dog, closestEnemy) < (dog.size / 2 + closestEnemy.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
                         closestEnemy.health -= dog.damage;
                         showDamageNumber(dog.damage, closestEnemy.x, closestEnemy.y);
@@ -2797,11 +2857,48 @@
                         }
                         dog.lastAttackTime = survivalTime; 
                     }
+
+                    // Dog shooting bones (Dixie's specific upgrade)
+                    if (currentCharacter === 'dixie' && player.upgrades.dogBones > 0) {
+                        dog.shootTimer += effectiveDt;
+                        if (dog.shootTimer >= 1 / dog.attackSpeed) {
+                            projectiles.push({
+                                x: dog.x,
+                                y: dog.y,
+                                vx: Math.cos(angle) * dogProjectileSpeed,
+                                vy: Math.sin(angle) * dogProjectileSpeed,
+                                size: 8, // Bone size
+                                damage: dogProjectileDamage,
+                                color: '#D2B48C', // Bone color
+                                pierce: 0,
+                                hits: 0
+                            });
+                            playSound('playerShot'); // Use a generic shot sound for bones
+                            dog.shootTimer = 0;
+                        }
+                    }
+
                 } else {
                     const angle = Math.atan2(player.y - dog.y, player.x - dog.x);
                     dog.x += Math.cos(angle) * dog.speed * effectiveDt;
                     dog.y += Math.sin(angle) * dog.speed * effectiveDt;
                 }
+            });
+        }
+
+        // NEW: Function to add a single dog ally
+        function addAllyDog() {
+            allyDogs.push({
+                x: player.x + (Math.random() - 0.5) * 50, 
+                y: player.y + (Math.random() - 0.5) * 50,
+                size: 20,
+                color: '#8B4513', // Brown dog color
+                speed: 200 + player.upgrades.dogSpeed * 20, 
+                damage: 10 + player.upgrades.dogStrength * 5, 
+                lastAttackTime: 0, 
+                attackCooldown: 0.5,
+                shootTimer: 0, // For dogBones ability
+                attackSpeed: 1 // For dogBones ability
             });
         }
 
@@ -3342,7 +3439,7 @@
             if (type === 'xp') {
                 powerups.push({
                     x: x, y: y, size: 10, color: '#ffff00', speed: 300, 
-                    xpValue: 10, 
+                    xpValue: 25, 
                     type: 'xp'
                 });
             } else if (type === 'heart') {
@@ -3364,7 +3461,7 @@
                 deactivateTemporaryPowerup();
             }
 
-            const powerupChoices = ['spreadGun', 'femaleAllyAndDogs']; 
+            const powerupChoices = ['spreadGun']; // Removed 'femaleAllyAndDogs'
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
 
             temporaryPowerupType = chosenPowerup;
@@ -3381,37 +3478,6 @@
                 case 'spreadGun':
                     console.log("Spread Gun Activated!");
                     break;
-                case 'femaleAllyAndDogs':
-                    console.log("Female Ally and Dogs Summoned!");
-                    femaleAlly = {
-                        x: player.x + 50, 
-                        y: player.y,
-                        size: 20,
-                        speed: player.speed * 1.5, 
-                        health: 200, 
-                        maxHealth: 200,
-                        damage: player.stats.damage * 0.8, 
-                        attackSpeed: player.stats.attackSpeed * 1.5, 
-                        shootTimer: 0,
-                        currentShootAngle: 0,
-                        projectileSize: 4,
-                        projectileSpeed: 600,
-                        pierce: 0,
-                        hits: 0,
-                    };
-                    allyDogs = [];
-                    for (let i = 0; i < 3; i++) {
-                        allyDogs.push({
-                            x: player.x - 50 + (i * 20), 
-                            y: player.y + 50,
-                            size: 20,
-                            speed: player.speed * 1.2, 
-                            damage: player.stats.damage * 0.5, 
-                            lastAttackTime: 0, 
-                            attackCooldown: 0.5 
-                        });
-                    }
-                    break;
             }
         }
 
@@ -3421,11 +3487,6 @@
             switch (temporaryPowerupType) {
                 case 'spreadGun':
                     console.log("Spread Gun Deactivated!");
-                    break;
-                case 'femaleAllyAndDogs':
-                    console.log("Female Ally and Dogs Deactivated!");
-                    femaleAlly = null; 
-                    allyDogs = []; 
                     break;
             }
             temporaryPowerupActive = false;
@@ -3440,7 +3501,7 @@
             while (player.xp >= player.nextLevelXp) {
                 levelUpQueue.push(true);
                 player.xp -= player.nextLevelXp;
-                player.nextLevelXp = Math.floor(player.nextLevelXp * 1.8); 
+                player.nextLevelXp = Math.floor(player.nextLevelXp * 1.5); 
                 player.maxHealth += 10;
                 player.health = Math.min(player.health + 10, player.maxHealth);
                 player.level++;
@@ -3462,7 +3523,10 @@
             console.log("[Show Power] showPowerSelection called.");
         
             const numOptions = 4; 
-            const availablePowers = POWER_OPTIONS.filter(p => p.level() < MAX_UPGRADE_LEVEL); 
+            // Filter powers based on current character
+            const availablePowers = POWER_OPTIONS.filter(p => 
+                p.level() < MAX_UPGRADE_LEVEL && p.characters.includes(currentCharacter)
+            ); 
             const selectedPowers = [];
         
             let tempAvailablePowers = [...availablePowers];
@@ -3516,8 +3580,7 @@
             particles = []; 
             spinningKnives = []; 
             chests = []; 
-            femaleAlly = null; 
-            allyDogs = []; 
+            allyDogs = []; // Ensure dogs are cleared on full game reset
             drones = []; 
             boomerangs = []; 
             levelUpQueue = []; 
@@ -3544,6 +3607,12 @@
             player.stats.forcefieldRadius = 0;
             player.forcefieldTimer = 0;
             player.forcefieldHitEnemies.clear();
+            player.stats.leashWhipDamage = 0; 
+            player.leashWhipCooldown = 0;    
+            player.leashWhipTimer = 0;       
+
+            dogProjectileDamage = 0; 
+            dogProjectileSpeed = 0;  
 
 
             updateMusicPatterns(currentMusicPatternIndex);
@@ -3643,6 +3712,9 @@
             if (player.stats.boomerangCount > 0) { 
                 player.boomerangTimer += effectiveDt;
             }
+            if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) { 
+                player.leashWhipTimer += effectiveDt;
+            }
 
             spinningKnives.forEach(knife => {
                 knife.angle += knife.rotationSpeed * effectiveDt;
@@ -3680,7 +3752,7 @@
                 ultimateDuration -= effectiveDt;
                 if (ultimateDuration <= 0) {
                     ultimateActive = false;
-                    player.color = '#6A808C'; 
+                    player.color = player.baseColor; // Reset to base color
                     ultimateCharge = 0;
                     gameSpeedMultiplier = 1; 
                     playerSpeedModifier = 1; 
@@ -3705,7 +3777,7 @@
             updateProjectiles(effectiveDt);
             updatePowerups(effectiveDt);
             updateChests(effectiveDt); 
-            updateFemaleAllyAndDogs(effectiveDt); 
+            updateAllyDogs(effectiveDt); // Renamed
             updateDrones(effectiveDt); 
             updateBoomerangs(effectiveDt); 
             checkCollisions();
@@ -3889,7 +3961,7 @@
             });
         
             document.getElementById('startButton').addEventListener('click', () => {
-                startGame();
+                showCharacterSelectMenu(); // Go to character select
             });
             document.getElementById('restartButton').addEventListener('click', handleRetry);
             saveScoreButton.addEventListener('click', saveAndDisplayHighScore);
@@ -3902,7 +3974,16 @@
             // New level select button and its event listeners
             levelSelectButton.addEventListener('click', showLevelSelectMenu);
             backToMainMenuButton.addEventListener('click', showStartMenu);
-            backToMainMenuButtonFromGame.addEventListener('click', backToMainMenu); // New button listener
+            backToMainMenuButtonFromGame.addEventListener('click', backToMainMenu); 
+
+            // NEW: Character selection listeners
+            document.querySelectorAll('.character-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    currentCharacter = e.currentTarget.dataset.character;
+                    startGame(); // Start game with selected character
+                });
+            });
+            backToStartMenuFromCharSelect.addEventListener('click', showStartMenu);
 
             canvas.addEventListener('mousedown', handlePointerEvent);
             canvas.addEventListener('touchstart', handlePointerEvent, { passive: false });
@@ -4027,6 +4108,7 @@
             player.vx = 0; 
             player.vy = 0; 
 
+            // Reset player stats and upgrades based on selected character
             player.stats = {
                 damage: 20, attackSpeed: 10, projectileSpeed: 400, pierce: 0, multiShot: 1, 
                 healthRegen: 0.1, magnet: 80, damageReduction: 0, 
@@ -4037,9 +4119,10 @@
                 dualUziActive: false, dualUziFireRate: 0, dualUziDamage: 0,
                 boomerangDamage: 0, boomerangCount: 0, boomerangCooldown: 4, boomerangRange: 150, boomerangSpeed: 400,
                 burstChargeDamage: 0, burstChargeProjectileCount: 0,
-                forcefieldActive: false, // NEW: Reset forcefield stats
+                forcefieldActive: false, 
                 forcefieldDamage: 0,
                 forcefieldRadius: 0,
+                leashWhipDamage: 0, 
             };
             player.upgrades = {
                 damage: 0, attackSpeed: 0, health: 0, speed: 0, pierce: 0, multiShot: 0, 
@@ -4048,7 +4131,12 @@
                 spinningKnives: 0, 
                 combatDrone: 0, shotgun: 0, dualUzi: 0,
                 boomerang: 0, burstCharge: 0,
-                forcefield: 0, // NEW: Reset forcefield upgrade level
+                forcefield: 0,
+                dogPack: 0,       
+                dogBones: 0,      
+                leashWhip: 0,     
+                dogStrength: 0,   
+                dogSpeed: 0,      
             };
             player.burstChargeCooldown = 5; 
             player.burstChargeTimer = 0; 
@@ -4062,8 +4150,27 @@
             lastShotSoundTime = 0;
             lastEnemyHitSoundTime = 0;
             lastUziSoundTime = 0; 
-            player.forcefieldTimer = 0; // NEW: Reset forcefield timer
-            player.forcefieldHitEnemies.clear(); // NEW: Clear hit enemies set
+            player.forcefieldTimer = 0; 
+            player.forcefieldHitEnemies.clear(); 
+            player.leashWhipTimer = 0; 
+
+            dogProjectileDamage = 0; 
+            dogProjectileSpeed = 0;  
+
+            // Character specific initializations
+            if (currentCharacter === 'johnny') {
+                player.color = '#6A808C'; // Default Johnny color
+                player.baseColor = '#6A808C';
+                allyDogs = []; // Ensure dogs are cleared for Johnny
+            } else if (currentCharacter === 'dixie') {
+                player.color = '#FF69B4'; // Pink/Magenta for Dixie
+                player.baseColor = '#FF69B4'; // Set base color for Dixie
+                player.stats.dualUziActive = true; // Dixie starts with Twin Uzis
+                player.stats.dualUziFireRate = 8;
+                player.stats.dualUziDamage = 2;
+                allyDogs = []; // Clear any existing dogs before adding new ones
+                addAllyDog(); // Dixie starts with 1 dog ally
+            }
 
             currentMusicPatternIndex = 0;
             musicPatternTimer = 0;
@@ -4087,8 +4194,6 @@
             particles = []; 
             spinningKnives = []; 
             chests = []; 
-            femaleAlly = null; 
-            allyDogs = []; 
             drones = []; 
             boomerangs = []; 
             levelUpQueue = []; 
@@ -4096,7 +4201,6 @@
             spawnTimer = 0;
             ultimateActive = false;
             ultimateDuration = 0;
-            player.color = '#6A808C'; 
             
             startMenu.style.display = 'none';
             gameOverMenu.style.display = 'none';
@@ -4104,6 +4208,7 @@
             highScoreModal.style.display = 'none';
             gameMenu.style.display = 'none'; 
             levelSelectMenu.style.display = 'none'; 
+            characterSelectMenu.style.display = 'none'; 
 
             // Generate obstacles for the selected level
             generateObstacles();
