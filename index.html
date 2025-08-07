@@ -607,6 +607,7 @@
 
             const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
             try {
+                console.log(`[Firebase Save] Attempting to save score for name: ${name}, score: ${score}`);
                 await addDoc(highScoresCollection, {
                     name: name,
                     score: score,
@@ -635,7 +636,9 @@
                 const querySnapshot = await getDocs(q);
                 const highScores = [];
                 querySnapshot.forEach((doc) => {
-                    highScores.push(doc.data());
+                    const data = doc.data();
+                    console.log("[Firebase Get] Fetched high score data:", data);
+                    highScores.push(data);
                 });
                 highScores.sort((a, b) => b.score - a.score); // Client-side sort just in case
                 return highScores;
@@ -714,14 +717,14 @@
         const gameMenu = document.getElementById('game-menu');       
         const muteMusicButton = document.getElementById('muteMusicButton'); 
         const resumeFromMenuButton = document.getElementById('resumeFromMenuButton'); 
-        const levelSelectButton = document.getElementById('levelSelectButton'); // New
-        const levelSelectMenu = document.getElementById('level-select-menu'); // New
-        const levelOptionsDiv = document.getElementById('level-options'); // New
-        const backToMainMenuButton = document.getElementById('backToMainMenuButton'); // New
-        const backToMainMenuButtonFromGame = document.getElementById('backToMainMenuButtonFromGame'); // New
-        const characterSelectMenu = document.getElementById('character-select-menu'); // NEW
-        const characterOptionsDiv = document.getElementById('character-options'); // NEW
-        const backToStartMenuFromCharSelect = document.getElementById('backToStartMenuFromCharSelect'); // NEW
+        const levelSelectButton = document.getElementById('levelSelectButton'); 
+        const levelSelectMenu = document.getElementById('level-select-menu'); 
+        const levelOptionsDiv = document.getElementById('level-options'); 
+        const backToMainMenuButton = document.getElementById('backToMainMenuButton'); 
+        const backToMainMenuButtonFromGame = document.getElementById('backToMainMenuButtonFromGame'); 
+        const characterSelectMenu = document.getElementById('character-select-menu'); 
+        const characterOptionsDiv = document.getElementById('character-options'); 
+        const backToStartMenuFromCharSelect = document.getElementById('backToStartMenuFromCharSelect'); 
 
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
@@ -754,18 +757,15 @@
         let bulletTimeActive = false; 
         let bulletTimeDuration = 0; 
         let spinningKnives = []; 
-        let temporaryPowerupActive = false; 
-        let temporaryPowerupDuration = 0;
-        let temporaryPowerupType = '';
         
         let randomChestSpawnTimer = 0; 
         const RANDOM_CHEST_SPAWN_INTERVAL = 5; 
         const RANDOM_CHEST_SPAWN_CHANCE = 0.011; 
 
-        let randomHeartSpawnTimer = 0; // New timer for heart drops
-        const HEART_SPAWN_START_TIME = 180; // 3 minutes in seconds
-        const HEART_SPAWN_INTERVAL = 60; // Every 60 seconds after 3 min mark
-        const HEART_SPAWN_CHANCE = 0.2; // 20% chance to drop a heart
+        let randomHeartSpawnTimer = 0; 
+        const HEART_SPAWN_START_TIME = 180; 
+        const HEART_SPAWN_INTERVAL = 60; 
+        const HEART_SPAWN_CHANCE = 0.2; 
 
         let chests = []; 
         let drones = []; 
@@ -790,7 +790,7 @@
             targetY: initialPlayerY,
             size: 20,
             color: '#6A808C', 
-            baseColor: '#6A808C', // NEW: Store base color for character
+            baseColor: '#6A808C', 
             speed: 300, 
             health: 100,
             maxHealth: 100,
@@ -884,12 +884,12 @@
         let levelUpQueue = []; 
 
         // Level management
-        let currentLevelId = 'hotel_lobby'; // Default starting level
-        let highestHotelLobbyScore = 0; // User's highest score for hotel lobby, loaded from Firebase
-        let currentCharacter = 'johnny'; // NEW: Default character
+        let currentLevelId = 'hotel_lobby'; 
+        let highestHotelLobbyScore = 0; 
+        let currentCharacter = 'johnny'; 
 
-        // Dog specific projectile stats (for Dixie)
-        let allyDogs = []; // NEW: Moved here to be persistent
+        // Dog specific variables (for Dixie)
+        let allyDogs = []; 
         let dogProjectileDamage = 0;
         let dogProjectileSpeed = 0;
 
@@ -1040,7 +1040,6 @@
               next: () => `Launch ${1 + Math.floor((player.upgrades.boomerang + 1) / 2)} boomerangs. Cooldown: ${(Math.max(1, 4 - (player.upgrades.boomerang + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.boomerang + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['johnny'] 
             },
-            // NEW: Forcefield ability
             { id: 'forcefield', name: 'Forcefield', description: 'Creates an energy shield that damages nearby enemies and protects you.',
               level: () => player.upgrades.forcefield,
               effect: () => {
@@ -1055,14 +1054,12 @@
               next: () => `Creates a forcefield (Radius: ${50 + (player.upgrades.forcefield + 1) * 10}, Damage: ${5 + (player.upgrades.forcefield + 1) * 5}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['johnny', 'dixie'] 
             },
-            // NEW: Dog Pack ability (Dixie only)
             { id: 'dogPack', name: 'Dog Pack', description: 'Summon an additional loyal dog ally.',
               level: () => player.upgrades.dogPack,
-              effect: () => { player.upgrades.dogPack++; addAllyDog(); },
+              effect: () => { player.upgrades.dogPack++; addAllyDog(); console.log(`[Dixie] Added dog. Total dogs: ${allyDogs.length}`); },
               next: () => `Summon another dog ally. (Lvl ${player.upgrades.dogPack + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
-            // NEW: Dog Bones ability (Dixie only)
             { id: 'dogBones', name: 'Dog Bones', description: 'Your dog allies shoot bone projectiles.',
               level: () => player.upgrades.dogBones,
               effect: () => { 
@@ -1073,7 +1070,6 @@
               next: () => `Dogs shoot bones for ${10 + (player.upgrades.dogBones + 1) * 5} damage. (Lvl ${player.upgrades.dogBones + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
-            // NEW: Leash Whip ability (Dixie only)
             { id: 'leashWhip', name: 'Leash Whip', description: 'Dixie performs a short-range whip attack.',
               level: () => player.upgrades.leashWhip,
               effect: () => { 
@@ -1084,14 +1080,12 @@
               next: () => `Unleash a whip dealing ${20 + (player.upgrades.leashWhip + 1) * 10} damage. Cooldown: ${(Math.max(0.5, 2 - (player.upgrades.leashWhip + 1) * 0.2)).toFixed(1)}s. (Lvl ${player.upgrades.leashWhip + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
-            // NEW: Dog Strength (Dixie only)
             { id: 'dogStrength', name: 'Dog Strength', description: 'Increases the damage of your dog allies.',
               level: () => player.upgrades.dogStrength,
               effect: () => { player.upgrades.dogStrength++; allyDogs.forEach(dog => dog.damage += 5); },
               next: () => `Increase dog melee damage by 5. (Lvl ${player.upgrades.dogStrength + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
-            // NEW: Dog Speed (Dixie only)
             { id: 'dogSpeed', name: 'Dog Speed', description: 'Increases the movement speed of your dog allies.',
               level: () => player.upgrades.dogSpeed,
               effect: () => { player.upgrades.dogSpeed++; allyDogs.forEach(dog => dog.speed += 20); },
@@ -1375,13 +1369,13 @@
             drawEnemies();
             drawPlayer();
             drawSpinningKnives(); 
-            drawAllyDogs(); // Renamed from drawAllyCreatures
+            drawAllyDogs(); 
             drawDrones(); 
             drawBoomerangs(); 
             if (ultimateActive) {
                 drawUltimateEffect();
             }
-            // NEW: Draw Forcefield
+            // Draw Forcefield
             if (player.stats.forcefieldActive) {
                 drawForcefield();
             }
@@ -1425,11 +1419,11 @@
         function drawObstacles() {
             obstacles.forEach(obstacle => {
                 ctx.fillStyle = obstacle.color;
-                if (obstacle.type === 'pillar' || obstacle.type === 'tree') { // 'tree' is also circular
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree') { 
                     ctx.beginPath();
                     ctx.arc(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width / 2, 0, Math.PI * 2);
                     ctx.fill();
-                } else if (obstacle.type === 'desk' || obstacle.type === 'chair' || obstacle.type === 'bush' || obstacle.type === 'bench') { // 'bush' and 'bench' are rectangular
+                } else if (obstacle.type === 'desk' || obstacle.type === 'chair' || obstacle.type === 'bush' || obstacle.type === 'bench') { 
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
                 }
             });
@@ -1472,15 +1466,15 @@
                 // If Dixie and dualUziActive, draw smaller arms or different gun style
                 if (currentCharacter === 'dixie' && player.stats.dualUziActive) {
                     const uziSize = s * 0.4;
-                    const uziOffset = s * 0.6; // Offset from center for dual uzis
+                    const uziOffset = s * 0.6; 
 
                     // Left Uzi
                     ctx.save();
                     ctx.translate(screenX - uziOffset, screenY - s * 0.8);
                     ctx.rotate(player.currentShootAngle);
                     ctx.fillStyle = '#444';
-                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); // Gun body
-                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); // Barrel
+                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); 
+                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); 
                     ctx.restore();
 
                     // Right Uzi
@@ -1488,8 +1482,8 @@
                     ctx.translate(screenX + uziOffset, screenY - s * 0.8);
                     ctx.rotate(player.currentShootAngle);
                     ctx.fillStyle = '#444';
-                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); // Gun body
-                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); // Barrel
+                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); 
+                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); 
                     ctx.restore();
 
                 } else {
@@ -1617,7 +1611,7 @@
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s*1.5);
                     ctx.fillStyle = '#1a1a1a'; 
                     ctx.fillRect(screenX - s/2, screenY - s/2, s, s/4);
-                } else if (enemy.type === 'enemyDog') { // This is for enemy dogs
+                } else if (enemy.type === 'enemyDog') { 
                     drawDogPixelArt(ctx, enemy, screenX, screenY, s);
                 } else if (enemy.type === 'enemyDrone') {
                     ctx.fillStyle = enemy.color; 
@@ -1647,7 +1641,7 @@
             }
         }
 
-        // NEW: Function to draw dog pixel art (for both ally and enemy dogs)
+        // Function to draw dog pixel art (for both ally and enemy dogs)
         function drawDogPixelArt(ctx, dog, screenX, screenY, s) {
             ctx.fillStyle = dog.color; 
             ctx.beginPath();
@@ -1797,7 +1791,6 @@
             });
         }
 
-        // Renamed from drawAllyCreatures to drawAllyDogs
         function drawAllyDogs() {
             allyDogs.forEach(dog => {
                 const s = dog.size;
@@ -1883,20 +1876,20 @@
             ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); 
         }
 
-        // NEW: Draw Forcefield
+        // Draw Forcefield
         function drawForcefield() {
             const screenX = player.x - camera.x;
             const screenY = player.y - camera.y;
-            const pulse = 1 + 0.1 * Math.sin(survivalTime * 5); // Pulsating effect
+            const pulse = 1 + 0.1 * Math.sin(survivalTime * 5); 
             const currentRadius = player.stats.forcefieldRadius * pulse;
 
             ctx.beginPath();
             ctx.arc(screenX, screenY, currentRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(0, 255, 255, ${0.7 * (1 - Math.abs(Math.sin(survivalTime * 2)) * 0.2)})`; // Pulsating opacity
+            ctx.strokeStyle = `rgba(0, 255, 255, ${0.7 * (1 - Math.abs(Math.sin(survivalTime * 2)) * 0.2)})`; 
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            ctx.fillStyle = `rgba(0, 255, 255, ${0.1 * (1 - Math.abs(Math.sin(survivalTime * 2)) * 0.2)})`; // Pulsating fill
+            ctx.fillStyle = `rgba(0, 255, 255, ${0.1 * (1 - Math.abs(Math.sin(survivalTime * 2)) * 0.2)})`; 
             ctx.fill();
         }
 
@@ -2075,7 +2068,7 @@
             populateLevelOptions();
         }
 
-        // NEW: Show Character Select Menu
+        // Show Character Select Menu
         function showCharacterSelectMenu() {
             startMenu.style.display = 'none';
             gameOverMenu.style.display = 'none';
@@ -2086,7 +2079,7 @@
         }
 
         function populateLevelOptions() {
-            levelOptionsDiv.innerHTML = ''; // Clear existing options
+            levelOptionsDiv.innerHTML = ''; 
 
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
@@ -2099,7 +2092,6 @@
                 card.innerHTML = `<h3>${level.name}</h3><p>${level.description}</p>`;
 
                 let isLocked = false;
-                // Only show lock info if unlockScore is greater than 0
                 if (level.id === 'the_park' && level.unlockScore > 0 && highestHotelLobbyScore < level.unlockScore) {
                     isLocked = true;
                     card.classList.add('locked');
@@ -2112,7 +2104,7 @@
                 if (!isLocked) {
                     card.addEventListener('click', () => {
                         currentLevelId = level.id;
-                        showCharacterSelectMenu(); // Go to character select after level selection
+                        showCharacterSelectMenu(); 
                     });
                 }
                 levelOptionsDiv.appendChild(card);
@@ -2381,12 +2373,12 @@
                 }
             }
 
-            // NEW: Leash Whip ability for Dixie
+            // Leash Whip ability for Dixie
             if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) {
                 player.leashWhipTimer += effectiveDt;
                 if (player.leashWhipTimer >= player.leashWhipCooldown) {
                     const enemiesInWhipRange = enemies.filter(enemy => 
-                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 50 + enemy.size / 2) // 50 is whip range
+                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 50 + enemy.size / 2) 
                     );
                     if (enemiesInWhipRange.length > 0) {
                         enemiesInWhipRange.forEach(enemy => {
@@ -2398,9 +2390,9 @@
                                 playSound('enemyHit');
                                 lastEnemyHitSoundTime = survivalTime;
                             }
-                            spawnParticles(enemy.x, enemy.y, {r: 150, g: 75, b: 0}); // Brown/whip color
+                            spawnParticles(enemy.x, enemy.y, {r: 150, g: 75, b: 0}); 
                         });
-                        playSound('playerShot'); // Use a generic shot sound for whip for now
+                        playSound('playerShot'); 
                     }
                     player.leashWhipTimer = 0;
                 }
@@ -2424,8 +2416,10 @@
         function activateUltimate() {
             ultimateActive = true;
             ultimateDuration = 1.5; 
-            if (currentCharacter === 'johnny') { // Only change color for Johnny
+            if (currentCharacter === 'johnny') { 
                 player.color = '#ff6600'; 
+            } else if (currentCharacter === 'dixie') {
+                player.color = player.baseColor; // Dixie remains pink
             }
             ultimateCharge = 0;
             playSound('ultimateActivate');
@@ -2836,7 +2830,6 @@
             }
         }
 
-        // Renamed from updateAllyCreatures to updateAllyDogs
         function updateAllyDogs(dt) {
             allyDogs.forEach(dog => {
                 const effectiveDt = dt * gameSpeedMultiplier;
@@ -2867,13 +2860,13 @@
                                 y: dog.y,
                                 vx: Math.cos(angle) * dogProjectileSpeed,
                                 vy: Math.sin(angle) * dogProjectileSpeed,
-                                size: 8, // Bone size
+                                size: 8, 
                                 damage: dogProjectileDamage,
-                                color: '#D2B48C', // Bone color
+                                color: '#D2B48C', 
                                 pierce: 0,
                                 hits: 0
                             });
-                            playSound('playerShot'); // Use a generic shot sound for bones
+                            playSound('playerShot'); 
                             dog.shootTimer = 0;
                         }
                     }
@@ -2886,20 +2879,21 @@
             });
         }
 
-        // NEW: Function to add a single dog ally
+        // Function to add a single dog ally
         function addAllyDog() {
             allyDogs.push({
                 x: player.x + (Math.random() - 0.5) * 50, 
                 y: player.y + (Math.random() - 0.5) * 50,
                 size: 20,
-                color: '#8B4513', // Brown dog color
+                color: '#8B4513', 
                 speed: 200 + player.upgrades.dogSpeed * 20, 
                 damage: 10 + player.upgrades.dogStrength * 5, 
                 lastAttackTime: 0, 
                 attackCooldown: 0.5,
-                shootTimer: 0, // For dogBones ability
-                attackSpeed: 1 // For dogBones ability
+                shootTimer: 0, 
+                attackSpeed: 1 
             });
+            console.log(`[Dixie] Dog added. Current dog count: ${allyDogs.length}`);
         }
 
         function updateDrones(dt) {
@@ -3457,11 +3451,10 @@
         }
 
         function activateTemporaryPowerup() {
-            if (temporaryPowerupActive) {
-                deactivateTemporaryPowerup();
-            }
+            // This function is now only for Johnny's temporary powerups
+            if (currentCharacter === 'dixie') return; 
 
-            const powerupChoices = ['spreadGun']; // Removed 'femaleAllyAndDogs'
+            const powerupChoices = ['spreadGun']; 
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
 
             temporaryPowerupType = chosenPowerup;
@@ -3596,7 +3589,7 @@
             projectileSpeedModifier = 1; 
             bulletTimeActive = false; 
             bulletTimeDuration = 0; 
-            temporaryPowerupActive = false; 
+            temporaryPowerupActive = false; // Reset temporary powerup state
             temporaryPowerupDuration = 0;
             temporaryPowerupType = '';
             lastUziSoundTime = 0;
@@ -3722,14 +3715,13 @@
                 knife.y = player.y + Math.sin(knife.angle) * knife.radius;
             });
 
-            // NEW: Forcefield damage application
+            // Forcefield damage application
             if (player.stats.forcefieldActive) {
                 player.forcefieldTimer += effectiveDt;
-                const forcefieldTickInterval = 0.5; // Damage every 0.5 seconds
+                const forcefieldTickInterval = 0.5; 
                 if (player.forcefieldTimer >= forcefieldTickInterval) {
                     enemies.forEach(enemy => {
                         if (!enemy.controlled && dist(player, enemy) < player.stats.forcefieldRadius + enemy.size / 2) {
-                            // Only hit if not already hit this tick
                             if (!player.forcefieldHitEnemies.has(enemy)) {
                                 const damageDealt = player.stats.forcefieldDamage;
                                 enemy.health -= damageDealt;
@@ -3744,7 +3736,7 @@
                         }
                     });
                     player.forcefieldTimer = 0;
-                    player.forcefieldHitEnemies.clear(); // Reset for next tick
+                    player.forcefieldHitEnemies.clear(); 
                 }
             }
 
@@ -3752,7 +3744,7 @@
                 ultimateDuration -= effectiveDt;
                 if (ultimateDuration <= 0) {
                     ultimateActive = false;
-                    player.color = player.baseColor; // Reset to base color
+                    player.color = player.baseColor; 
                     ultimateCharge = 0;
                     gameSpeedMultiplier = 1; 
                     playerSpeedModifier = 1; 
@@ -3764,6 +3756,8 @@
                 ultimateCharge = Math.min(ultimateCharge, ultimateMaxCharge);
             }
 
+            // Removed temporary powerup logic from here as it's no longer needed for Dixie
+            // If Johnny activates a temporary powerup, it will still function as before.
             if (temporaryPowerupActive) {
                 temporaryPowerupDuration -= dt; 
                 if (temporaryPowerupDuration <= 0) {
@@ -3777,7 +3771,7 @@
             updateProjectiles(effectiveDt);
             updatePowerups(effectiveDt);
             updateChests(effectiveDt); 
-            updateAllyDogs(effectiveDt); // Renamed
+            updateAllyDogs(effectiveDt); 
             updateDrones(effectiveDt); 
             updateBoomerangs(effectiveDt); 
             checkCollisions();
@@ -3823,6 +3817,7 @@
         async function saveAndDisplayHighScore() {
             const playerName = playerNameInput.value.trim();
             if (playerName) {
+                console.log(`[High Score Modal] Player name entered: "${playerName}"`);
                 if (window.saveHighScoreFirebase) {
                     await window.saveHighScoreFirebase(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
                 }
@@ -3836,6 +3831,7 @@
         async function displayHighScores() {
             const highScores = await window.getHighScoresFirebase();
             highScoresList.innerHTML = '';
+            console.log("[Display High Scores] High scores to display:", highScores);
             
             if (highScores.length === 0) {
                 const li = document.createElement('li');
@@ -3851,6 +3847,7 @@
                     <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${s.levelId === 'hotel_lobby' ? 'Hotel' : 'Park'})</span>
                 `;
                 highScoresList.appendChild(li);
+                console.log(`[Display High Scores] Displaying score: ${s.name}, ${s.score}`);
             });
         }
 
@@ -3930,9 +3927,8 @@
         function init() {
             // Start Tone.js audio context immediately
             Tone.start().then(() => {
-                setupAudio(); // Initialize synths once audio context is ready
-                updateMusicPatterns(0); // Setup initial music patterns
-                // Tone.Transport.start() will be called in startGame() or updateMusicPatterns()
+                setupAudio(); 
+                updateMusicPatterns(0); 
             }).catch(e => console.error("Error starting Tone.js audio context:", e));
 
 
@@ -3961,7 +3957,7 @@
             });
         
             document.getElementById('startButton').addEventListener('click', () => {
-                showCharacterSelectMenu(); // Go to character select
+                showCharacterSelectMenu(); 
             });
             document.getElementById('restartButton').addEventListener('click', handleRetry);
             saveScoreButton.addEventListener('click', saveAndDisplayHighScore);
@@ -3976,11 +3972,11 @@
             backToMainMenuButton.addEventListener('click', showStartMenu);
             backToMainMenuButtonFromGame.addEventListener('click', backToMainMenu); 
 
-            // NEW: Character selection listeners
+            // Character selection listeners
             document.querySelectorAll('.character-card').forEach(card => {
                 card.addEventListener('click', (e) => {
                     currentCharacter = e.currentTarget.dataset.character;
-                    startGame(); // Start game with selected character
+                    startGame(); 
                 });
             });
             backToStartMenuFromCharSelect.addEventListener('click', showStartMenu);
@@ -4067,7 +4063,7 @@
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
                     obstacles.push({
-                        x: x, y: y, width: 70, height: 70, color: '#006400', type: 'tree' // Dark green
+                        x: x, y: y, width: 70, height: 70, color: '#006400', type: 'tree' 
                     });
                 }
                 // Bushes (rectangular, smaller)
@@ -4075,7 +4071,7 @@
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
                     obstacles.push({
-                        x: x, y: y, width: 40, height: 40, color: '#008000', type: 'bush' // Medium green
+                        x: x, y: y, width: 40, height: 40, color: '#008000', type: 'bush' 
                     });
                 }
                 // Park Benches (rectangular, longer)
@@ -4083,7 +4079,7 @@
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
                     obstacles.push({
-                        x: x, y: y, width: 100, height: 30, color: '#8B4513', type: 'bench' // Saddle brown
+                        x: x, y: y, width: 100, height: 30, color: '#8B4513', type: 'bench' 
                     });
                 }
             }
@@ -4159,17 +4155,17 @@
 
             // Character specific initializations
             if (currentCharacter === 'johnny') {
-                player.color = '#6A808C'; // Default Johnny color
+                player.color = '#6A808C'; 
                 player.baseColor = '#6A808C';
                 allyDogs = []; // Ensure dogs are cleared for Johnny
             } else if (currentCharacter === 'dixie') {
-                player.color = '#FF69B4'; // Pink/Magenta for Dixie
-                player.baseColor = '#FF69B4'; // Set base color for Dixie
-                player.stats.dualUziActive = true; // Dixie starts with Twin Uzis
-                player.stats.dualUziFireRate = 8;
-                player.stats.dualUziDamage = 2;
+                player.color = '#FF69B4'; 
+                player.baseColor = '#FF69B4'; 
                 allyDogs = []; // Clear any existing dogs before adding new ones
                 addAllyDog(); // Dixie starts with 1 dog ally
+                player.stats.dualUziActive = true; 
+                player.stats.dualUziFireRate = 8;
+                player.stats.dualUziDamage = 2;
             }
 
             currentMusicPatternIndex = 0;
