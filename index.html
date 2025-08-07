@@ -609,12 +609,13 @@
         let friendlyDog = null; // Friendly dog companion
         let temporaryPowerupActive = false; // Flag for temporary power-ups
         let temporaryPowerupDuration = 0; // Duration for temporary power-ups
-        let temporaryPowerupType = ''; // Type of active temporary power-up (e.g., 'spreadGun', 'extremeBulletTime', 'friendlyDog')
+        let temporaryPowerupType = ''; // Type of active temporary power-up (e.g., 'spreadGun', 'friendlyDog')
         let chestSpawnTimer = 0;
         const CHEST_SPAWN_INTERVAL = 15; // Chest spawns every 15 seconds
         let chests = []; // Array for chests
         let drones = []; // Array for combat drones
         let boomerangs = []; // Array for boomerangs
+        let convertedEnemies = []; // Track converted enemies for duration
 
         // Camera for a larger game world
         let camera = {
@@ -1517,29 +1518,28 @@
                 
                 ctx.save();
                 ctx.translate(screenX, screenY);
-                ctx.rotate(Math.atan2(b.vy, b.vx)); // Rotate to face direction of movement
+                // Rotate to face direction of movement, adding a slight offset for banana curve
+                ctx.rotate(Math.atan2(b.vy, b.vx) + Math.PI / 8); 
                 
                 ctx.fillStyle = b.color; // Yellow for boomerang
-                const armWidth = b.size * 0.3;
-                const armLength = b.size * 1.5;
-                const curveOffset = b.size * 0.5;
+                const bananaWidth = b.size * 0.6; // Thicker part
+                const bananaLength = b.size * 2; // Overall length
 
                 ctx.beginPath();
-                // First arm
-                ctx.moveTo(-armLength / 2, -armWidth / 2);
-                ctx.lineTo(armLength / 2, -armWidth / 2);
-                ctx.lineTo(armLength / 2 - curveOffset, armWidth / 2);
-                ctx.lineTo(-armLength / 2 - curveOffset, armWidth / 2);
-                ctx.closePath();
-                ctx.fill();
-
-                // Second arm (rotated)
-                ctx.rotate(Math.PI / 2.5); // Rotate for the second arm
-                ctx.beginPath();
-                ctx.moveTo(-armLength / 2, -armWidth / 2);
-                ctx.lineTo(armLength / 2, -armWidth / 2);
-                ctx.lineTo(armLength / 2 - curveOffset, armWidth / 2);
-                ctx.lineTo(-armLength / 2 - curveOffset, armWidth / 2);
+                // Start at one end of the banana
+                ctx.moveTo(0, -bananaWidth / 2);
+                // Curve to the other end
+                ctx.bezierCurveTo(
+                    bananaLength * 0.5, -bananaWidth * 1.5, // Control point 1 (outward curve)
+                    bananaLength * 0.5, bananaWidth * 1.5,  // Control point 2 (inward curve)
+                    0, bananaWidth / 2                      // End point
+                );
+                // Close the shape to form the other side of the banana
+                ctx.bezierCurveTo(
+                    -bananaLength * 0.5, bananaWidth * 1.5, // Control point 3
+                    -bananaLength * 0.5, -bananaWidth * 1.5, // Control point 4
+                    0, -bananaWidth / 2                     // Back to start
+                );
                 ctx.closePath();
                 ctx.fill();
 
@@ -1553,11 +1553,13 @@
             const screenX = player.x - camera.x;
             const screenY = player.y - camera.y;
             ctx.arc(screenX, screenY, pulseSize * 2, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(255, 102, 0, ${0.5 * (1 - ultimateDuration/5)})`;
+            // Updated to use ultimateDuration/3 for correct fade
+            ctx.strokeStyle = `rgba(255, 102, 0, ${0.5 * (ultimateDuration/3)})`; // Fade in/out
             ctx.lineWidth = 10;
             ctx.stroke();
 
-            ctx.fillStyle = `rgba(255, 102, 0, ${0.1 * (1 - ultimateDuration/5)})`;
+            // Updated to use ultimateDuration/3 for correct fade
+            ctx.fillStyle = `rgba(255, 102, 0, ${0.1 * (ultimateDuration/3)})`; // Fade in/out
             ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); // Fill background scaled
         }
 
@@ -1667,8 +1669,8 @@
             player.isMoving = distance > 5;
             if (player.isMoving) {
                 const angle = Math.atan2(dy, dx);
-                // Apply playerSpeedModifier only if temporary powerup is extremeBulletTime
-                const currentSpeed = player.speed * (temporaryPowerupType === 'extremeBulletTime' ? playerSpeedModifier : 1);
+                // Apply playerSpeedModifier if ultimate is active
+                const currentSpeed = player.speed * (ultimateActive ? playerSpeedModifier : 1);
                 player.vx = Math.cos(angle) * currentSpeed;
                 player.vy = Math.sin(angle) * currentSpeed;
             } else {
@@ -1740,8 +1742,8 @@
                         projectiles.push({
                             x: player.x,
                             y: player.y,
-                            vx: Math.cos(projectileAngle) * player.stats.projectileSpeed * 0.5 * (temporaryPowerupType === 'extremeBulletTime' ? projectileSpeedModifier : 1), // 50% slower
-                            vy: Math.sin(projectileAngle) * player.stats.projectileSpeed * 0.5 * (temporaryPowerupType === 'extremeBulletTime' ? projectileSpeedModifier : 1), // 50% slower
+                            vx: Math.cos(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), // 50% slower
+                            vy: Math.sin(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), // 50% slower
                             size: 5, // Slightly larger projectile for visual distinction
                             damage: ultimateActive ? player.stats.burstChargeDamage * 3 : player.stats.burstChargeDamage,
                             color: ultimateActive ? '#ff9933' : '#00ffff', // Orange-ish for ultimate, Cyan for normal
@@ -1779,8 +1781,8 @@
                         projectiles.push({
                             x: player.x,
                             y: player.y,
-                            vx: Math.cos(projectileAngle) * currentProjectileSpeed * (temporaryPowerupType === 'extremeBulletTime' ? projectileSpeedModifier : 1),
-                            vy: Math.sin(projectileAngle) * currentProjectileSpeed * (temporaryPowerupType === 'extremeBulletTime' ? projectileSpeedModifier : 1),
+                            vx: Math.cos(projectileAngle) * currentProjectileSpeed * (ultimateActive ? projectileSpeedModifier : 1),
+                            vy: Math.sin(projectileAngle) * currentProjectileSpeed * (ultimateActive ? projectileSpeedModifier : 1),
                             size: 3,
                             damage: ultimateActive ? currentDamage * 3 : currentDamage,
                             color: ultimateActive ? '#ff6600' : '#d1d1d1',
@@ -1809,8 +1811,8 @@
                     projectiles.push({
                         x: player.x,
                         y: player.y,
-                        vx: Math.cos(angle) * player.stats.projectileSpeed * (temporaryPowerupType === 'extremeBulletTime' ? projectileSpeedModifier : 1),
-                        vy: Math.sin(angle) * player.stats.projectileSpeed * (temporaryPowerupType === 'extremeBulletTime' ? projectileSpeedModifier : 1),
+                        vx: Math.cos(angle) * player.stats.projectileSpeed * (ultimateActive ? projectileSpeedModifier : 1),
+                        vy: Math.sin(angle) * player.stats.projectileSpeed * (ultimateActive ? projectileSpeedModifier : 1),
                         size: 3,
                         damage: player.stats.burstDamage,
                         color: ultimateActive ? '#ff6600' : '#d1d1d1',
@@ -1950,10 +1952,16 @@
 
         function activateUltimate() {
             ultimateActive = true;
-            ultimateDuration = 5; 
+            ultimateDuration = 3; // Wicked mode now lasts 3 seconds
             player.color = '#ff6600'; 
             ultimateCharge = 0;
             playSound('ultimateActivate');
+
+            // Activate Bullet Time effect
+            gameSpeedMultiplier = 0.25; // Everything else moves at 25% speed
+            playerSpeedModifier = 3; // Player and player projectiles move at 75% speed (0.25 * 3 = 0.75)
+            projectileSpeedModifier = 3;
+            if (!isMusicMuted) Tone.Transport.playbackRate = 0.5; // Slow down music only if not muted
         }
         
         function updateEnemies(dt) {
@@ -2870,6 +2878,7 @@
                 vx: 0, 
                 vy: 0, 
                 animationFrame: 0, // Initialize animation frame for controlled enemies
+                originalType: enemyType // Store original type to revert
             };
         }
 
@@ -2932,7 +2941,8 @@
                 deactivateTemporaryPowerup();
             }
 
-            const powerupChoices = ['spreadGun', 'extremeBulletTime', 'friendlyDog', 'enemyConversion']; // Added enemyConversion
+            // Removed 'extremeBulletTime' from powerupChoices
+            const powerupChoices = ['spreadGun', 'friendlyDog', 'enemyConversion']; 
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
 
             temporaryPowerupType = chosenPowerup;
@@ -2943,15 +2953,6 @@
                     console.log("Spread Gun Activated!");
                     temporaryPowerupActive = true;
                     // Player's multiShot will be handled in updatePlayer
-                    break;
-                case 'extremeBulletTime':
-                    console.log("Extreme Bullet Time Activated!");
-                    temporaryPowerupActive = true;
-                    temporaryPowerupDuration = 5; // Bullet time lasts 5 seconds max
-                    gameSpeedMultiplier = 0.25; // Everything else moves at 25% speed
-                    playerSpeedModifier = 3; // Player and player projectiles move at 75% speed (0.25 * 3 = 0.75)
-                    projectileSpeedModifier = 3;
-                    if (!isMusicMuted) Tone.Transport.playbackRate = 0.5; // Slow down music only if not muted
                     break;
                 case 'friendlyDog':
                     console.log("Friendly Dog Summoned!");
@@ -2966,16 +2967,15 @@
                     break;
                 case 'enemyConversion':
                     console.log("Enemy Conversion Activated!");
-                    // This is a one-time effect, so it doesn't need a duration or active state
-                    temporaryPowerupActive = false; // It's instant
-                    temporaryPowerupDuration = 0; // No duration
+                    temporaryPowerupActive = true; // This power-up now has a duration
+                    temporaryPowerupDuration = 10; // Lasts for 10 seconds
 
                     const nonControlledEnemies = enemies.filter(e => !e.controlled);
                     const enemiesToConvertCount = Math.floor(nonControlledEnemies.length * 0.5); // 50% chance
                     
                     // Shuffle and select enemies to convert
                     const shuffledEnemies = nonControlledEnemies.sort(() => 0.5 - Math.random());
-                    const convertedEnemies = shuffledEnemies.slice(0, enemiesToConvertCount);
+                    convertedEnemies = shuffledEnemies.slice(0, enemiesToConvertCount); // Store converted enemies
 
                     convertedEnemies.forEach(enemy => {
                         enemy.controlled = true;
@@ -2996,16 +2996,23 @@
                     console.log("Spread Gun Deactivated!");
                     // No direct change needed as updatePlayer handles default multiShot
                     break;
-                case 'extremeBulletTime':
-                    console.log("Extreme Bullet Time Deactivated!");
-                    gameSpeedMultiplier = 1; // Reset speed
-                    playerSpeedModifier = 1; // Reset player speed modifier
-                    projectileSpeedModifier = 1; // Reset projectile speed modifier
-                    if (!isMusicMuted) Tone.Transport.playbackRate = 1; // Reset music speed only if not muted
-                    break;
                 case 'friendlyDog':
                     console.log("Friendly Dog Deactivated!");
                     friendlyDog = null; // Remove the dog
+                    break;
+                case 'enemyConversion':
+                    console.log("Enemy Conversion Deactivated!");
+                    // Revert converted enemies back to hostile
+                    convertedEnemies.forEach(enemy => {
+                        enemy.controlled = false;
+                        // Revert their stats to original enemy stats (or a scaled version)
+                        const originalStats = getEnemyStats(enemy.originalType || 'basic');
+                        enemy.speed = originalStats.speed;
+                        enemy.health = originalStats.health;
+                        enemy.damage = originalStats.damage;
+                        enemy.color = originalStats.color;
+                    });
+                    convertedEnemies = []; // Clear the list of converted enemies
                     break;
             }
             temporaryPowerupActive = false;
@@ -3101,6 +3108,7 @@
             friendlyDog = null; // Reset friendly dog
             drones = []; // Reset drones
             boomerangs = []; // Reset boomerangs
+            convertedEnemies = []; // Clear converted enemies
             
             survivalTime = 0;
             shootTimer = 0;
@@ -3206,13 +3214,18 @@
                     ultimateActive = false;
                     player.color = '#6A808C'; // Revert to blue-grey
                     ultimateCharge = 0;
+                    // Deactivate Bullet Time effect
+                    gameSpeedMultiplier = 1; // Reset speed
+                    playerSpeedModifier = 1; // Reset player speed modifier
+                    projectileSpeedModifier = 1; // Reset projectile speed modifier
+                    if (!isMusicMuted) Tone.Transport.playbackRate = 1; // Reset music speed only if not muted
                 }
             } else if (ultimateCharge < ultimateMaxCharge) {
                 ultimateCharge += effectiveDt * 5 * (1 + player.upgrades.ultimateRecharge * 0.2); 
                 ultimateCharge = Math.min(ultimateCharge, ultimateMaxCharge);
             }
 
-            // Handle Temporary Power-ups (Bullet Time, Spread Gun, Friendly Dog)
+            // Handle Temporary Power-ups (Spread Gun, Friendly Dog, Enemy Conversion)
             if (temporaryPowerupActive) {
                 temporaryPowerupDuration -= dt; // Duration now decreases based on real time
                 if (temporaryPowerupDuration <= 0) {
@@ -3470,8 +3483,8 @@
             // Clear existing obstacles before generating new ones
             obstacles = []; 
 
-            // Pillars (circular obstacles)
-            for (let i = 0; i < 10; i++) {
+            // Pillars (circular obstacles) - Increased from 10 to 20
+            for (let i = 0; i < 20; i++) {
                 const x = Math.random() * gameWorld.width;
                 const y = Math.random() * gameWorld.height;
                 obstacles.push({
@@ -3479,8 +3492,8 @@
                 });
             }
 
-            // Desks (rectangular obstacles)
-            for (let i = 0; i < 5; i++) {
+            // Desks (rectangular obstacles) - Increased from 5 to 10
+            for (let i = 0; i < 10; i++) {
                 const x = Math.random() * gameWorld.width;
                 const y = Math.random() * gameWorld.height;
                 obstacles.push({
@@ -3488,8 +3501,8 @@
                 });
             }
 
-            // Chairs (smaller rectangular obstacles)
-            for (let i = 0; i < 15; i++) {
+            // Chairs (smaller rectangular obstacles) - Increased from 15 to 30
+            for (let i = 0; i < 30; i++) {
                 const x = Math.random() * gameWorld.width;
                 const y = Math.random() * gameWorld.height;
                 obstacles.push({
@@ -3573,6 +3586,7 @@
             friendlyDog = null; // Clear friendly dog
             drones = []; // Clear drones
             boomerangs = []; // Clear boomerangs
+            convertedEnemies = []; // Clear converted enemies
             shootTimer = 0;
             spawnTimer = 0;
             ultimateActive = false;
