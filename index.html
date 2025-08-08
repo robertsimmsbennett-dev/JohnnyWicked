@@ -423,6 +423,27 @@
             font-size: 0.9em;
             font-weight: bold;
         }
+
+        /* Mini-map styles */
+        #miniMapContainer {
+            position: absolute;
+            top: 10px;
+            right: 10px; /* Position in top right */
+            width: 150px; /* Fixed width */
+            height: 150px; /* Fixed height to make it square */
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 10;
+            pointer-events: none; /* Only for display, not interaction */
+        }
+
+        #miniMapCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -474,6 +495,7 @@
                 <!-- High scores will be loaded here -->
             </ul>
             <button id="restartButton">Restart Game</button>
+            <button id="backToMainMenuButtonGameOver">Return to Main Menu</button> <!-- New button -->
         </div>
 
         <div id="message-box" class="menu" style="display: none;">
@@ -574,6 +596,11 @@
                         window.highestHotelLobbyScore = score;
                         console.log("Loaded highest Hotel Lobby score:", window.highestHotelLobbyScore);
                     });
+                    // Load 'the_park' score
+                    window.loadUserLevelScore('the_park').then(score => {
+                        window.highestTheParkScore = score;
+                        console.log("Loaded highest The Park score:", window.highestTheParkScore);
+                    });
                     // Display high scores on start menu after Firebase is initialized
                     window.displayHighScores('start-menu-high-scores-list');
                 } else {
@@ -652,6 +679,8 @@
                     // Update the global variable if it's for hotel lobby
                     if (levelId === 'hotel_lobby') {
                         window.highestHotelLobbyScore = score;
+                    } else if (levelId === 'the_park') { // Update for 'the_park'
+                        window.highestTheParkScore = score;
                     }
                 } else {
                     console.log(`Current score ${score} is not higher than existing best ${currentBestScore} for ${levelId}.`);
@@ -709,6 +738,7 @@
         const characterSelectMenu = document.getElementById('character-select-menu'); 
         const characterOptionsDiv = document.getElementById('character-options'); 
         const backToStartMenuFromCharSelect = document.getElementById('backToStartMenuFromCharSelect'); 
+        const backToMainMenuButtonGameOver = document.getElementById('backToMainMenuButtonGameOver'); // New button
 
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
@@ -776,8 +806,8 @@
             color: '#6A808C', 
             baseColor: '#6A808C', 
             speed: 300, 
-            health: 100,
-            maxHealth: 100,
+            health: 100, // This will be set based on character in startGame
+            maxHealth: 100, // This will be set based on character in startGame
             xp: 0,
             nextLevelXp: 100,
             level: 1,
@@ -867,6 +897,10 @@
             leashWhipTimer: 0,       
             knifeThrowTimer: 0, // New: Timer for knife throw cooldown
             swordThrowTimer: 0, // New: Timer for sword throw cooldown
+            invincible: false, // New: Player invincibility state
+            invincibilityTimer: 0, // New: Duration of invincibility
+            flashTimer: 0, // New: Timer for player flash effect
+            isFlashing: false // New: Flag for flash effect
         };
 
         // Game control states
@@ -880,6 +914,7 @@
         // Level management
         let currentLevelId = 'hotel_lobby'; 
         let highestHotelLobbyScore = 0; 
+        let highestTheParkScore = 0; // New: To track score for 'the_park'
         let currentCharacter = 'johnny'; 
 
         // Dog specific variables (for Dixie)
@@ -1077,13 +1112,13 @@
             },
             { id: 'dogStrength', name: 'Dog Strength', description: 'Increases the damage of your dog allies.',
               level: () => player.upgrades.dogStrength,
-              effect: () => { player.upgrades.dogStrength++; allyDogs.forEach(dog => dog.damage += 5); },
+              effect: () => { allyDogs.forEach(dog => dog.damage += 5); }, // Removed player.upgrades.dogStrength++ as it's not needed here
               next: () => `Increase dog melee damage by 5. (Lvl ${player.upgrades.dogStrength + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
             { id: 'dogSpeed', name: 'Dog Speed', description: 'Increases the movement speed of your dog allies.',
               level: () => player.upgrades.dogSpeed,
-              effect: () => { player.upgrades.dogSpeed++; allyDogs.forEach(dog => dog.speed += 20); },
+              effect: () => { allyDogs.forEach(dog => dog.speed += 20); }, // Removed player.upgrades.dogSpeed++ as it's not needed here
               next: () => `Increase dog movement speed by 20. (Lvl ${player.upgrades.dogSpeed + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
@@ -1406,10 +1441,16 @@
         
         function drawBackground() {
             let bgColor;
+            let gridColor = '#222222';
+
             if (currentLevelId === 'hotel_lobby') {
                 bgColor = '#101010'; // Dark grey for hotel lobby
             } else if (currentLevelId === 'the_park') {
                 bgColor = '#225522'; // Green for park
+                gridColor = '#336633';
+            } else if (currentLevelId === 'desert_oasis') { // New desert theme
+                bgColor = '#C2B280'; // Sandy beige
+                gridColor = '#B09F6E'; // Slightly darker sand for grid
             } else {
                 bgColor = '#101010'; // Default
             }
@@ -1418,7 +1459,7 @@
             ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); 
 
             const patternSize = 50;
-            ctx.strokeStyle = '#222222';
+            ctx.strokeStyle = gridColor;
             ctx.lineWidth = 1;
 
             const startX = -camera.x % patternSize;
@@ -1436,12 +1477,32 @@
         function drawObstacles() {
             obstacles.forEach(obstacle => {
                 ctx.fillStyle = obstacle.color;
-                if (obstacle.type === 'pillar' || obstacle.type === 'tree') { 
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus') { // Added cactus
                     ctx.beginPath();
                     ctx.arc(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width / 2, 0, Math.PI * 2);
                     ctx.fill();
-                } else if (obstacle.type === 'desk' || obstacle.type === 'chair' || obstacle.type === 'bush' || obstacle.type === 'bench') { 
+                    // Draw cactus spikes (simplified)
+                    if (obstacle.type === 'cactus') {
+                        ctx.fillStyle = '#6B8E23'; // Darker green for spikes
+                        ctx.fillRect(obstacle.x - camera.x - obstacle.width * 0.4, obstacle.y - camera.y - obstacle.width * 0.4, obstacle.width * 0.1, obstacle.width * 0.1);
+                        ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.3, obstacle.y - camera.y - obstacle.width * 0.3, obstacle.width * 0.1, obstacle.width * 0.1);
+                        ctx.fillRect(obstacle.x - camera.x - obstacle.width * 0.2, obstacle.y - camera.y + obstacle.width * 0.3, obstacle.width * 0.1, obstacle.width * 0.1);
+                    }
+                } else if (obstacle.type === 'desk' || obstacle.type === 'chair' || obstacle.type === 'bush' || obstacle.type === 'bench' || obstacle.type === 'old_car') { // Added old_car
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
+                     // Draw car details (simplified)
+                    if (obstacle.type === 'old_car') {
+                        ctx.fillStyle = '#36454F'; // Dark grey for windows
+                        ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.2, obstacle.y - camera.y + obstacle.height * 0.2, obstacle.width * 0.2, obstacle.height * 0.6);
+                        ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.6, obstacle.y - camera.y + obstacle.height * 0.2, obstacle.width * 0.2, obstacle.height * 0.6);
+                        ctx.fillStyle = '#111111'; // Black for tires
+                        ctx.beginPath();
+                        ctx.arc(obstacle.x - camera.x + obstacle.width * 0.15, obstacle.y - camera.y + obstacle.height * 0.9, obstacle.width * 0.08, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(obstacle.x - camera.x + obstacle.width * 0.85, obstacle.y - camera.y + obstacle.height * 0.9, obstacle.width * 0.08, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 }
             });
         }
@@ -1453,6 +1514,14 @@
             const currentCharacter = player.character || 'johnny'; // Assuming player.character holds 'johnny' or 'dixie'
 
             if (spriteName === 'player') {
+                // If player is invincible, flash
+                if (player.invincible && player.isFlashing) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; // White flash
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, s * 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
                 // Head
                 ctx.fillStyle = '#c79b69'; 
                 ctx.fillRect(screenX - s/4, screenY - s*1.5, s/2, s/2);
@@ -1490,33 +1559,59 @@
 
                 // Dixie specific arm adjustments
                 if (currentCharacter === 'dixie') {
-                    armLength = s * 1.7; // Longer arms for Dixie (roughly half total body height)
-                    shoulderYOffset = s * 0.4; // Adjust shoulder position slightly
+                    // Dixie's arms are longer and where guns are attached
+                    armLength = s * 1.5; // Made arms longer
+                    armWidth = s * 0.2; // Made arms slightly thinner
+                    shoulderXOffset = s * 0.5; 
+                    shoulderYOffset = s * 0.6; 
                 }
 
                 ctx.fillStyle = player.color; 
 
-                // If Dixie and dualUziActive, draw smaller arms or different gun style
+                // If Dixie and dualUziActive, draw guns on the ends of her arms
                 if (currentCharacter === 'dixie' && player.stats.dualUziActive) {
                     const uziSize = s * 0.4;
-                    const uziOffset = s * 0.6; 
+                    const uziBarrelLength = s * 0.6;
+                    const armBaseOffset = s * 0.2; // Offset from player body center to arm base
 
-                    // Left Uzi
+                    // Calculate arm end points for Uzis
+                    const armAngle = player.currentShootAngle;
+                    const leftArmEndX = screenX + Math.cos(armAngle - Math.PI/2) * armBaseOffset + Math.cos(armAngle) * armLength;
+                    const leftArmEndY = screenY + Math.sin(armAngle - Math.PI/2) * armBaseOffset + Math.sin(armAngle) * armLength;
+                    
+                    const rightArmEndX = screenX + Math.cos(armAngle + Math.PI/2) * armBaseOffset + Math.cos(armAngle) * armLength;
+                    const rightArmEndY = screenY + Math.sin(armAngle + Math.PI/2) * armBaseOffset + Math.sin(armAngle) * armLength;
+
+                    // Draw Left Arm (simple rect from shoulder to gun)
                     ctx.save();
-                    ctx.translate(screenX - uziOffset, screenY - s * 0.8);
-                    ctx.rotate(player.currentShootAngle);
-                    ctx.fillStyle = '#444';
-                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); 
-                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); 
+                    ctx.translate(screenX + Math.cos(armAngle - Math.PI/2) * armBaseOffset, screenY + Math.sin(armAngle - Math.PI/2) * armBaseOffset);
+                    ctx.rotate(armAngle);
+                    ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
                     ctx.restore();
 
-                    // Right Uzi
+                    // Draw Right Arm (simple rect from shoulder to gun)
                     ctx.save();
-                    ctx.translate(screenX + uziOffset, screenY - s * 0.8);
-                    ctx.rotate(player.currentShootAngle);
+                    ctx.translate(screenX + Math.cos(armAngle + Math.PI/2) * armBaseOffset, screenY + Math.sin(armAngle + Math.PI/2) * armBaseOffset);
+                    ctx.rotate(armAngle);
+                    ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
+                    ctx.restore();
+
+                    // Draw Left Uzi
+                    ctx.save();
+                    ctx.translate(leftArmEndX, leftArmEndY);
+                    ctx.rotate(armAngle);
                     ctx.fillStyle = '#444';
-                    ctx.fillRect(-uziSize/2, -uziSize/4, uziSize, uziSize/2); 
-                    ctx.fillRect(uziSize/2, -uziSize/8, uziSize/2, uziSize/4); 
+                    ctx.fillRect(0, -uziSize/4, uziBarrelLength, uziSize/2); // Barrel
+                    ctx.fillRect(-uziSize/2, -uziSize/2, uziSize, uziSize); // Body of gun
+                    ctx.restore();
+
+                    // Draw Right Uzi
+                    ctx.save();
+                    ctx.translate(rightArmEndX, rightArmEndY);
+                    ctx.rotate(armAngle);
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(0, -uziSize/4, uziBarrelLength, uziSize/2); // Barrel
+                    ctx.fillRect(-uziSize/2, -uziSize/2, uziSize, uziSize); // Body of gun
                     ctx.restore();
 
                 } else {
@@ -2063,7 +2158,7 @@
             obstacles.forEach(obstacle => {
                 const miniX = obstacle.x * miniMapScale;
                 const miniY = obstacle.y * miniMapScale;
-                if (obstacle.type === 'pillar' || obstacle.type === 'tree') {
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus') {
                     miniMapCtx.beginPath();
                     miniMapCtx.arc(miniX, miniY, obstacle.width / 2 * miniMapScale, 0, Math.PI * 2);
                     miniMapCtx.fill();
@@ -2110,14 +2205,14 @@
                     miniMapCtx.bezierCurveTo(
                         miniX + heartMiniSize * 1.0, miniY - heartMiniSize * 0.7,
                         miniX + heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
-                        miniX, miniMapCtx.currentY + heartMiniSize * 1.0
+                        miniX, miniY + heartMiniSize * 1.0 // Corrected from miniMapCtx.currentY
                     );
                     miniMapCtx.bezierCurveTo(
                         miniX - heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
-                        miniX - heartMiniSize * 1.0, miniY - heartMiniSize * 0.7,
+                        miniX - heartMiniSize * 1.0, miniY - heartMiniSize * 0.7, // Corrected from miniMapCtx.currentY
                         miniX - heartMiniSize * 0.5, miniY + heartMiniSize * 0.3
                     );
-                    ctx.closePath();
+                    miniMapCtx.closePath();
                     miniMapCtx.fill();
                 }
             });
@@ -2165,7 +2260,8 @@
 
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
-                { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' } 
+                { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' },
+                { id: 'desert_oasis', name: 'Desert Oasis', unlockScore: 5000, description: 'A scorching landscape with hidden dangers.' } // New level
             ];
 
             levels.forEach(level => {
@@ -2180,6 +2276,13 @@
                     const unlockInfo = document.createElement('p');
                     unlockInfo.className = 'unlock-info';
                     unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Hotel Lobby (Your Best: ${highestHotelLobbyScore})`;
+                    card.appendChild(unlockInfo);
+                } else if (level.id === 'desert_oasis' && level.unlockScore > 0 && highestTheParkScore < level.unlockScore) { // New unlock condition
+                    isLocked = true;
+                    card.classList.add('locked');
+                    const unlockInfo = document.createElement('p');
+                    unlockInfo.className = 'unlock-info';
+                    unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in The Park (Your Best: ${highestTheParkScore})`;
                     card.appendChild(unlockInfo);
                 }
 
@@ -2223,7 +2326,7 @@
             };
             
             obstacles.forEach(obstacle => {
-                if (obstacle.type === 'pillar' || obstacle.type === 'tree') {
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus') {
                     let obstacleCircle = {
                         x: obstacle.x,
                         y: obstacle.y,
@@ -2251,6 +2354,23 @@
         
             player.health += player.stats.healthRegen * effectiveDt;
             player.health = Math.min(player.health + player.stats.healthRegen * effectiveDt, player.maxHealth);
+
+            // Update player flash and invincibility
+            if (player.invincible) {
+                player.invincibilityTimer -= effectiveDt;
+                player.flashTimer += effectiveDt;
+
+                if (player.flashTimer >= 0.1) { // Flash every 0.1 seconds
+                    player.isFlashing = !player.isFlashing;
+                    player.flashTimer = 0;
+                }
+
+                if (player.invincibilityTimer <= 0) {
+                    player.invincible = false;
+                    player.isFlashing = false; // Ensure flashing stops
+                    player.color = player.baseColor; // Restore original color
+                }
+            }
         
             if (player.upgrades.burstCharge > 0 && player.burstChargeTimer <= 0) {
                 const closestEnemy = findClosestEnemy();
@@ -2392,11 +2512,13 @@
                     if (closestEnemy) {
                         const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
                         player.currentShootAngle = angle; 
-                        const offset = 10; 
-                        
+                        // Adjusted projectile spawn points to be at the end of the longer arms
+                        const armBaseOffset = player.size * 0.2; // Offset from player body center to arm base
+                        const armLengthOffset = player.size * 1.5; // Dixie's arm length
+
                         projectiles.push({
-                            x: player.x + Math.cos(angle - Math.PI/2) * offset,
-                            y: player.y + Math.sin(angle - Math.PI/2) * offset,
+                            x: player.x + Math.cos(angle - Math.PI/2) * armBaseOffset + Math.cos(angle) * armLengthOffset,
+                            y: player.y + Math.sin(angle - Math.PI/2) * armBaseOffset + Math.sin(angle) * armLengthOffset,
                             vx: Math.cos(angle) * 600,
                             vy: Math.sin(angle) * 600,
                             size: 2,
@@ -2406,8 +2528,8 @@
                             hits: 0
                         });
                         projectiles.push({
-                            x: player.x + Math.cos(angle + Math.PI/2) * offset,
-                            y: player.y + Math.sin(angle + Math.PI/2) * offset,
+                            x: player.x + Math.cos(angle + Math.PI/2) * armBaseOffset + Math.cos(angle) * armLengthOffset,
+                            y: player.y + Math.sin(angle + Math.PI/2) * armBaseOffset + Math.sin(angle) * armLengthOffset,
                             vx: Math.cos(angle) * 600,
                             vy: Math.sin(angle) * 600,
                             size: 2,
@@ -2822,7 +2944,7 @@
 
                 if (!enemy.ghostModeActive) {
                     obstacles.forEach(obstacle => {
-                        if (obstacle.type === 'pillar' || obstacle.type === 'tree') {
+                        if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus') {
                             let obstacleCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
                             circleCircleCollideAndResolve(tempEnemy, obstacleCircle);
                         } else {
@@ -2971,53 +3093,119 @@
             const leashRadius = DOG_LEASH_RADIUS; 
             const attackRadius = 400; 
 
+            // Create a set of enemies already targeted by other dogs in this frame
+            const targetedEnemies = new Set();
             allyDogs.forEach(dog => {
-                let targetX = dog.x;
-                let targetY = dog.y;
-                let angleToTarget;
+                if (dog.currentTarget) {
+                    targetedEnemies.add(dog.currentTarget);
+                }
+            });
 
-                const distToPlayer = dist(dog, player);
+            allyDogs.forEach(dog => {
+                let intendedVx = 0;
+                let intendedVy = 0;
+                let closestEnemyInAttackRange = null;
+                let minDistanceToEnemy = Infinity;
 
-                // Prioritize attacking enemies if in range
-                let closestEnemyInDixieRange = null;
-                let minDistanceToDixieEnemy = Infinity;
-
+                // Find the closest untargeted enemy within attack range
                 enemies.forEach(enemy => {
-                    if (!enemy.controlled) {
-                        const distToDixie = dist(player, enemy);
-                        if (distToDixie < attackRadius && distToDixie < minDistanceToDixieEnemy) {
-                            minDistanceToDixieEnemy = distToDixie;
-                            closestEnemyInDixieRange = enemy;
+                    if (!enemy.controlled && !targetedEnemies.has(enemy)) { // Ensure enemy is not controlled and not already targeted
+                        const distToEnemy = dist(dog, enemy);
+                        if (distToEnemy < attackRadius && distToEnemy < minDistanceToEnemy) {
+                            minDistanceToEnemy = distToEnemy;
+                            closestEnemyInAttackRange = enemy;
                         }
                     }
                 });
 
-                if (closestEnemyInDixieRange) {
+                // If only one enemy on screen and it's already targeted, allow this dog to target it too.
+                // This prevents dogs from doing nothing if there's only one enemy left and another dog has it.
+                if (!closestEnemyInAttackRange && enemies.filter(e => !e.controlled).length === 1) {
+                    closestEnemyInAttackRange = enemies.find(e => !e.controlled);
+                }
+                
+                dog.currentTarget = closestEnemyInAttackRange; // Store the current target
+
+                if (closestEnemyInAttackRange) {
                     // Move towards the closest enemy
-                    angleToTarget = Math.atan2(closestEnemyInDixieRange.y - dog.y, closestEnemyInDixieRange.x - dog.x);
-                    targetX = dog.x + Math.cos(angleToTarget) * dog.speed * effectiveDt;
-                    targetY = dog.y + Math.sin(angleToTarget) * dog.speed * effectiveDt;
+                    const angleToEnemy = Math.atan2(closestEnemyInAttackRange.y - dog.y, closestEnemyInAttackRange.x - dog.x);
+                    intendedVx = Math.cos(angleToEnemy) * dog.speed;
+                    intendedVy = Math.sin(angleToEnemy) * dog.speed;
                 } else {
                     // Orbit the player if no enemies in range
                     dog.orbitAngle = (dog.orbitAngle + effectiveDt * 0.8) % (Math.PI * 2); 
-                    targetX = player.x + Math.cos(dog.orbitAngle) * dog.orbitRadius;
-                    targetY = player.y + Math.sin(dog.orbitAngle) * dog.orbitRadius;
+                    const targetX = player.x + Math.cos(dog.orbitAngle) * dog.orbitRadius;
+                    const targetY = player.y + Math.sin(dog.orbitAngle) * dog.orbitRadius;
 
                     // Move towards the target orbit position
                     const dx = targetX - dog.x;
                     const dy = targetY - dog.y;
                     const distToOrbit = Math.sqrt(dx * dx + dy * dy);
-                    if (distToOrbit > 5) { // Only move if not already close to orbit position
+                    if (distToOrbit > 5) { 
                         const angleToOrbit = Math.atan2(dy, dx);
-                        dog.x += Math.cos(angleToOrbit) * dog.speed * effectiveDt;
-                        dog.y += Math.sin(angleToOrbit) * dog.speed * effectiveDt;
+                        intendedVx = Math.cos(angleToOrbit) * dog.speed;
+                        intendedVy = Math.sin(angleToOrbit) * dog.speed;
+                    }
+                }
+
+                // Store current position for stuck detection
+                const prevX = dog.x;
+                const prevY = dog.y;
+
+                // Temporary object for collision resolution with intended velocity
+                let tempDog = {
+                    x: dog.x + intendedVx * effectiveDt, 
+                    y: dog.y + intendedVy * effectiveDt, 
+                    size: dog.size,
+                    vx: intendedVx, 
+                    vy: intendedVy
+                };
+                
+                if (!dog.ghostModeActive) {
+                    obstacles.forEach(obstacle => {
+                        if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus') {
+                            let obstacleCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
+                            circleCircleCollideAndResolve(tempDog, obstacleCircle);
+                        } else {
+                            circleRectCollideAndResolve(tempDog, obstacle);
+                        }
+                    });
+                }
+
+                dog.x = tempDog.x;
+                dog.y = tempDog.y;
+                dog.vx = tempDog.vx; 
+                dog.vy = tempDog.vy;
+
+                // Stuck detection and ghost mode for dogs
+                const movedDistance = dist({x: prevX, y: prevY}, {x: dog.x, y: dog.y});
+                const stuckThreshold = 1; 
+
+                if (movedDistance < stuckThreshold) {
+                    dog.stuckTimer += effectiveDt;
+                    if (dog.stuckTimer >= 1 && !dog.ghostModeActive) { // Shorter stuck time for dogs (1 second)
+                        dog.ghostModeActive = true;
+                        dog.ghostModeTimer = 0.5; // Shorter ghost mode for dogs (0.5 seconds)
+                        dog.stuckTimer = 0; 
+                        console.log(`Ally dog entered ghost mode!`);
+                    }
+                } else {
+                    dog.stuckTimer = 0; 
+                }
+
+                if (dog.ghostModeActive) {
+                    dog.ghostModeTimer -= effectiveDt;
+                    if (dog.ghostModeTimer <= 0) {
+                        dog.ghostModeActive = false;
+                        dog.stuckTimer = 0; 
+                        console.log(`Ally dog exited ghost mode.`);
                     }
                 }
 
                 // Dog melee attack
-                if (closestEnemyInDixieRange && dist(dog, closestEnemyInDixieRange) < (dog.size / 2 + closestEnemyInDixieRange.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
-                    closestEnemyInDixieRange.health -= dog.damage;
-                    showDamageNumber(dog.damage, closestEnemyInDixieRange.x, closestEnemyInDixieRange.y);
+                if (closestEnemyInAttackRange && dist(dog, closestEnemyInAttackRange) < (dog.size / 2 + closestEnemyInAttackRange.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
+                    closestEnemyInAttackRange.health -= dog.damage;
+                    showDamageNumber(dog.damage, closestEnemyInAttackRange.x, closestEnemyInAttackRange.y);
                     if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
                         playSound('enemyHit');
                         lastEnemyHitSoundTime = survivalTime;
@@ -3026,10 +3214,10 @@
                 }
 
                 // Dog shooting bones (Dixie's specific upgrade)
-                if (currentCharacter === 'dixie' && player.upgrades.dogBones > 0 && closestEnemyInDixieRange) {
+                if (currentCharacter === 'dixie' && player.upgrades.dogBones > 0 && closestEnemyInAttackRange) {
                     dog.shootTimer += effectiveDt;
                     if (dog.shootTimer >= 1 / dog.attackSpeed) {
-                        const angleToEnemy = Math.atan2(closestEnemyInDixieRange.y - dog.y, closestEnemyInDixieRange.x - dog.x);
+                        const angleToEnemy = Math.atan2(closestEnemyInAttackRange.y - dog.y, closestEnemyInAttackRange.x - dog.x);
                         projectiles.push({
                             x: dog.x,
                             y: dog.y,
@@ -3078,7 +3266,13 @@
                         shootTimer: 0, 
                         attackSpeed: 1,
                         orbitAngle: angle,        // New: Store orbit angle
-                        orbitRadius: radius       // New: Store orbit radius
+                        orbitRadius: radius,       // New: Store orbit radius
+                        vx: 0, // Initialize vx
+                        vy: 0, // Initialize vy
+                        stuckTimer: 0, // New: for stuck detection
+                        ghostModeActive: false, // New: for temporary ghost mode
+                        ghostModeTimer: 0, // New: duration of ghost mode
+                        currentTarget: null // New: to track which enemy this dog is targeting
                     });
                 }
             }
@@ -3174,16 +3368,28 @@
                 if (!enemy.controlled) {
                     if (dist(player, enemy) < (player.size / 2 + enemy.size / 2) && 
                         (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull' || enemy.type === 'enforcer')) { 
-                        let damageTaken = enemy.damage;
-                        damageTaken = damageTaken * (1 - player.stats.damageReduction);
                         
-                        if (ultimateActive) {
-                            damageTaken *= 0.5;
-                        }
-                        damageTaken = Math.max(0, damageTaken); 
-                        player.health -= damageTaken;
-                        if (player.health <= 0) {
-                            gameOver();
+                        // Apply damage only if not invincible
+                        if (!player.invincible) {
+                            let damageTaken = enemy.damage;
+                            damageTaken = damageTaken * (1 - player.stats.damageReduction);
+                            
+                            if (ultimateActive) {
+                                damageTaken *= 0.5;
+                            }
+                            damageTaken = Math.max(0, damageTaken); 
+                            player.health -= damageTaken;
+                            
+                            // Activate invincibility frames
+                            player.invincible = true;
+                            player.invincibilityTimer = 0.5; // 0.5 seconds of invincibility
+                            player.flashTimer = 0; // Reset flash timer
+                            player.isFlashing = true; // Start flashing immediately
+                            player.color = 'rgba(255,255,255,0.7)'; // Flash white
+
+                            if (player.health <= 0) {
+                                gameOver();
+                            }
                         }
                     }
                 }
@@ -3233,22 +3439,34 @@
 
             for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
                 const p = enemyProjectiles[i];
-                if (p.sourceEnemy && dist(p.sourceEnemy, player) < p.sourceEnemy.attackRange && dist(player, p) < (player.size / 2 + p.size / 2)) { 
-                    let damageTaken = p.damage;
-                    damageTaken = damageTaken * (1 - player.stats.damageReduction);
+                if (dist(player, p) < (player.size / 2 + p.size / 2)) { 
+                    // Apply damage only if not invincible
+                    if (!player.invincible) {
+                        let damageTaken = p.damage;
+                        damageTaken = damageTaken * (1 - player.stats.damageReduction);
 
-                    if (ultimateActive) {
-                        damageTaken *= 0.5;
-                    }
-                    damageTaken = Math.max(0, damageTaken); 
-                    player.health -= damageTaken;
-                    if (player.health <= 0) {
-                        gameOver();
+                        if (ultimateActive) {
+                            damageTaken *= 0.5;
+                        }
+                        damageTaken = Math.max(0, damageTaken); 
+                        player.health -= damageTaken;
+
+                        // Activate invincibility frames
+                        player.invincible = true;
+                        player.invincibilityTimer = 0.5; 
+                        player.flashTimer = 0;
+                        player.isFlashing = true;
+                        player.color = 'rgba(255,255,255,0.7)'; // Flash white
+
+                        if (player.health <= 0) {
+                            gameOver();
+                        }
                     }
 
                     if (p.isAoE) {
                         enemies.forEach(otherEnemy => {
-                            if (otherEnemy !== p.sourceEnemy && !otherEnemy.controlled && dist(player, otherEnemy) < p.aoeRadius) {
+                            // Ensure the AoE only damages hostile enemies that are not the source of the projectile
+                            if (otherEnemy !== p.sourceEnemy && !otherEnemy.controlled && dist(p, otherEnemy) < p.aoeRadius + otherEnemy.size / 2) {
                                 otherEnemy.health -= p.damage * 0.5; 
                                 showDamageNumber(p.damage * 0.5, otherEnemy.x, otherEnemy.y);
                                 if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
@@ -3494,6 +3712,9 @@
             };
         
             switch (type) {
+                case 'basic':
+                    base.color = '#777777';
+                    break;
                 case 'fast':
                     base.size = 20; base.speed = 50; base.health = 30; base.xp = 15; base.color = '#ff4444';
                     base.attackRange = 200; base.attackSpeed = 2; base.projectileSpeed = 150; 
@@ -3600,17 +3821,28 @@
             spawnParticles(drone.x, drone.y, {r: 255, g: 100, b: 0}); 
 
             if (dist(player, drone) < (player.size / 2 + drone.explosionRadius)) {
-                let damageTaken = drone.damage;
-                damageTaken = damageTaken * (1 - player.stats.damageReduction);
-                if (ultimateActive) {
-                    damageTaken *= 0.5;
+                // Apply damage only if not invincible
+                if (!player.invincible) {
+                    let damageTaken = drone.damage;
+                    damageTaken = damageTaken * (1 - player.stats.damageReduction);
+                    if (ultimateActive) {
+                        damageTaken *= 0.5;
+                    }
+                    damageTaken = Math.max(0, damageTaken); 
+                    player.health -= damageTaken;
+
+                    // Activate invincibility frames
+                    player.invincible = true;
+                    player.invincibilityTimer = 0.5; 
+                    player.flashTimer = 0;
+                    player.isFlashing = true;
+                    player.color = 'rgba(255,255,255,0.7)'; // Flash white
+
+                    if (player.health <= 0) {
+                        gameOver();
+                    }
+                    showDamageNumber(damageTaken, player.x, player.y);
                 }
-                damageTaken = Math.max(0, damageTaken); 
-                player.health -= damageTaken;
-                if (player.health <= 0) {
-                    gameOver();
-                }
-                showDamageNumber(damageTaken, player.x, player.y);
             }
 
             enemies.forEach(otherEnemy => {
@@ -3816,6 +4048,12 @@
 
             player.knifeThrowTimer = 0;
             player.swordThrowTimer = 0;
+
+            // Reset player invincibility state
+            player.invincible = false;
+            player.invincibilityTimer = 0;
+            player.flashTimer = 0;
+            player.isFlashing = false;
 
             updateMusicPatterns(currentMusicPatternIndex);
         }
@@ -4065,7 +4303,7 @@
                 const li = document.createElement('li');
                 li.innerHTML = `
                     <span>${index + 1}. ${s.name}</span>
-                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${s.levelId === 'hotel_lobby' ? 'Hotel' : 'Park'})</span>
+                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${s.levelId === 'hotel_lobby' ? 'Hotel' : (s.levelId === 'the_park' ? 'Park' : 'Desert')})</span>
                 `;
                 targetList.appendChild(li);
                 console.log(`[Display High Scores for ${targetElementId}] Displaying score: ${s.name}, ${s.score}`);
@@ -4158,8 +4396,9 @@
             camera.width = canvas.width / camera.zoom;
             camera.height = canvas.height / camera.zoom;
 
-            miniMapCanvas.width = miniMapCanvas.clientWidth;
-            miniMapCanvas.height = miniMapCanvas.clientHeight;
+            // Set mini-map canvas dimensions to match container for square shape
+            miniMapCanvas.width = miniMapContainer.clientWidth;
+            miniMapCanvas.height = miniMapContainer.clientHeight;
             miniMapScale = miniMapCanvas.width / gameWorld.width; 
 
             window.addEventListener('resize', () => {
@@ -4168,8 +4407,9 @@
                 camera.width = canvas.width / camera.zoom; 
                 camera.height = canvas.height / camera.zoom; 
 
-                miniMapCanvas.width = miniMapCanvas.clientWidth;
-                miniMapCanvas.height = miniMapCanvas.clientHeight;
+                // Adjust mini-map canvas dimensions on resize
+                miniMapCanvas.width = miniMapContainer.clientWidth;
+                miniMapCanvas.height = miniMapContainer.clientHeight;
                 miniMapScale = miniMapCanvas.width / gameWorld.width;
 
                 if (!gameRunning) {
@@ -4182,6 +4422,7 @@
             });
             document.getElementById('restartButton').addEventListener('click', handleRetry);
             saveScoreButton.addEventListener('click', saveAndDisplayHighScore);
+            backToMainMenuButtonGameOver.addEventListener('click', backToMainMenu); // Event listener for new button
 
             pauseButton.addEventListener('click', togglePause);
             menuButton.addEventListener('click', toggleMenu);
@@ -4303,6 +4544,23 @@
                         x: x, y: y, width: 100, height: 30, color: '#8B4513', type: 'bench' 
                     });
                 }
+            } else if (currentLevelId === 'desert_oasis') { // New desert obstacles
+                // Cactuses (circular)
+                for (let i = 0; i < 20; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 60, height: 60, color: '#32CD32', type: 'cactus' 
+                    });
+                }
+                // Old Dead Cars (rectangular)
+                for (let i = 0; i < 10; i++) {
+                    const x = Math.random() * gameWorld.width;
+                    const y = Math.random() * gameWorld.height;
+                    obstacles.push({
+                        x: x, y: y, width: 150, height: 60, color: '#696969', type: 'old_car' 
+                    });
+                }
             }
         }
         
@@ -4313,8 +4571,6 @@
             score = 0;
             survivalTime = 0;
             ultimateCharge = 0;
-            player.health = 100;
-            player.maxHealth = 100;
             player.xp = 0;
             player.level = 1;
             player.nextLevelXp = 100;
@@ -4387,10 +4643,14 @@
             // Character specific initializations
             player.character = currentCharacter; // Set the current character on the player object
             if (currentCharacter === 'johnny') {
+                player.health = 100;
+                player.maxHealth = 100;
                 player.color = '#6A808C'; 
                 player.baseColor = '#6A808C';
                 allyDogs = []; // Ensure dogs are cleared for Johnny
             } else if (currentCharacter === 'dixie') {
+                player.health = 120; // Increased base health for Dixie
+                player.maxHealth = 120; // Increased max health for Dixie
                 player.color = '#FF69B4'; 
                 player.baseColor = '#FF69B4'; 
                 allyDogs = []; // Clear any existing dogs before adding new ones
@@ -4412,6 +4672,11 @@
             temporaryPowerupActive = false; 
             temporaryPowerupDuration = 0;
             temporaryPowerupType = '';
+            
+            player.invincible = false;
+            player.invincibilityTimer = 0;
+            player.flashTimer = 0;
+            player.isFlashing = false;
 
 
             enemies = [];
