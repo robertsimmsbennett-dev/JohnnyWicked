@@ -180,7 +180,7 @@
             background-color: rgba(255, 255, 255, 0.05);
             border: 1px solid #00ffff;
             padding: 15px;
-            width: 200px;
+            width: 160px; /* Reduced width */
             border-radius: 5px;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -921,7 +921,7 @@
         let allyDogs = []; 
         let dogProjectileDamage = 0;
         let dogProjectileSpeed = 0;
-        const DOG_LEASH_RADIUS = 120; // Increased leash radius for dogs
+        const DOG_LEASH_RADIUS = 60; // Increased leash radius for dogs (CHANGED from 120)
 
         // Enemy and power-up configuration
         const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull', 'enforcer']; 
@@ -1052,12 +1052,12 @@
               effect: () => {
                 player.upgrades.dualUzi++;
                 player.stats.dualUziActive = true;
-                player.stats.dualUziFireRate = 8 + player.upgrades.dualUzi * 4; 
-                player.stats.dualUziDamage = 2 + player.upgrades.dualUzi * 1.5; 
+                player.stats.dualUziFireRate = 10 + player.upgrades.dualUzi * 5; // Increased fire rate (CHANGED)
+                player.stats.dualUziDamage = 4 + player.upgrades.dualUzi * 2.5; // Increased damage (CHANGED)
                 player.dualUziTimer = 0; 
               },
-              next: () => `Fires two streams at ${8 + (player.upgrades.dualUzi + 1) * 4} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
-              characters: ['johnny'] // Removed 'dixie' from here
+              next: () => `Fires two streams at ${10 + (player.upgrades.dualUzi + 1) * 5} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie'] // Added Dixie back here
             },
             { id: 'boomerang', name: 'Boomerang', description: 'Launches a spinning boomerang that hits enemies and returns.',
               level: () => player.upgrades.boomerang,
@@ -1075,13 +1075,13 @@
               effect: () => {
                 player.upgrades.forcefield++;
                 player.stats.forcefieldActive = true; 
-                player.stats.forcefieldDamage = 5 + player.upgrades.forcefield * 5; 
-                player.stats.forcefieldRadius = 50 + player.upgrades.forcefield * 10; 
+                player.stats.forcefieldDamage = 10 + player.upgrades.forcefield * 8; // Increased base damage and scaling (CHANGED)
+                player.stats.forcefieldRadius = 70 + player.upgrades.forcefield * 15; // Increased base radius and scaling (CHANGED)
                 player.stats.damageReduction = Math.min(0.8, player.stats.damageReduction + 0.02); 
                 player.forcefieldTimer = 0; 
                 player.forcefieldHitEnemies.clear(); 
               },
-              next: () => `Creates a forcefield (Radius: ${50 + (player.upgrades.forcefield + 1) * 10}, Damage: ${5 + (player.upgrades.forcefield + 1) * 5}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`,
+              next: () => `Creates a forcefield (Radius: ${70 + (player.upgrades.forcefield + 1) * 15}, Damage: ${10 + (player.upgrades.forcefield + 1) * 8}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`, // Updated description
               characters: ['johnny', 'dixie'] 
             },
             { id: 'dogPack', name: 'Dog Pack', description: 'Summon an additional loyal dog ally.',
@@ -1557,65 +1557,58 @@
                 let shoulderXOffset = s * 0.4; 
                 let shoulderYOffset = s * 0.5; 
 
-                // Dixie specific arm adjustments
+                // Character specific arm adjustments
                 if (currentCharacter === 'dixie') {
-                    // Dixie's arms are longer and where guns are attached
-                    armLength = s * 1.5; // Made arms longer
-                    armWidth = s * 0.2; // Made arms slightly thinner
+                    armLength = s * 1.5; 
+                    armWidth = s * 0.2; 
                     shoulderXOffset = s * 0.5; 
                     shoulderYOffset = s * 0.6; 
                 }
 
                 ctx.fillStyle = player.color; 
 
-                // If Dixie and dualUziActive, draw guns on the ends of her arms
-                if (currentCharacter === 'dixie' && player.stats.dualUziActive) {
-                    const uziSize = s * 0.4;
-                    const uziBarrelLength = s * 0.6;
-                    const armBaseOffset = s * 0.2; // Offset from player body center to arm base
+                // Draw guns on the ends of arms for Johnny's pistol or Dixie's Uzis if active
+                if ((currentCharacter === 'johnny') || (currentCharacter === 'dixie' && player.stats.dualUziActive)) { // Modified condition for Johnny
+                    const gunSize = s * 0.4;
+                    const gunBarrelLength = s * 0.6;
+                    const armBaseOffset = s * 0.2; 
+                    const currentArmLength = (currentCharacter === 'johnny' ? s * 0.8 : s * 1.5); // Use Johnny's arm length for his gun
 
-                    // Calculate arm end points for Uzis
+                    // Calculate arm end points for guns
                     const armAngle = player.currentShootAngle;
-                    const leftArmEndX = screenX + Math.cos(armAngle - Math.PI/2) * armBaseOffset + Math.cos(armAngle) * armLength;
-                    const leftArmEndY = screenY + Math.sin(armAngle - Math.PI/2) * armBaseOffset + Math.sin(armAngle) * armLength;
                     
-                    const rightArmEndX = screenX + Math.cos(armAngle + Math.PI/2) * armBaseOffset + Math.cos(armAngle) * armLength;
-                    const rightArmEndY = screenY + Math.sin(armAngle + Math.PI/2) * armBaseOffset + Math.sin(armAngle) * armLength;
+                    // Determine number of guns and their offsets
+                    let gunOffsets = [];
+                    if (currentCharacter === 'johnny') {
+                        gunOffsets.push(0); // Single gun for Johnny
+                    } else if (currentCharacter === 'dixie' && player.stats.dualUziActive) {
+                        gunOffsets.push(-armBaseOffset); // Left Uzi
+                        gunOffsets.push(armBaseOffset);  // Right Uzi
+                    }
 
-                    // Draw Left Arm (simple rect from shoulder to gun)
-                    ctx.save();
-                    ctx.translate(screenX + Math.cos(armAngle - Math.PI/2) * armBaseOffset, screenY + Math.sin(armAngle - Math.PI/2) * armBaseOffset);
-                    ctx.rotate(armAngle);
-                    ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
-                    ctx.restore();
+                    gunOffsets.forEach(offset => {
+                        const armEndX = screenX + Math.cos(armAngle + Math.PI/2) * offset + Math.cos(armAngle) * currentArmLength;
+                        const armEndY = screenY + Math.sin(armAngle + Math.PI/2) * offset + Math.sin(armAngle) * currentArmLength;
 
-                    // Draw Right Arm (simple rect from shoulder to gun)
-                    ctx.save();
-                    ctx.translate(screenX + Math.cos(armAngle + Math.PI/2) * armBaseOffset, screenY + Math.sin(armAngle + Math.PI/2) * armBaseOffset);
-                    ctx.rotate(armAngle);
-                    ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
-                    ctx.restore();
+                        // Draw Arm (simple rect from shoulder to gun)
+                        ctx.save();
+                        ctx.translate(screenX + Math.cos(armAngle + Math.PI/2) * offset, screenY + Math.sin(armAngle + Math.PI/2) * offset);
+                        ctx.rotate(armAngle);
+                        ctx.fillRect(0, -armWidth / 2, currentArmLength, armWidth);
+                        ctx.restore();
 
-                    // Draw Left Uzi
-                    ctx.save();
-                    ctx.translate(leftArmEndX, leftArmEndY);
-                    ctx.rotate(armAngle);
-                    ctx.fillStyle = '#444';
-                    ctx.fillRect(0, -uziSize/4, uziBarrelLength, uziSize/2); // Barrel
-                    ctx.fillRect(-uziSize/2, -uziSize/2, uziSize, uziSize); // Body of gun
-                    ctx.restore();
-
-                    // Draw Right Uzi
-                    ctx.save();
-                    ctx.translate(rightArmEndX, rightArmEndY);
-                    ctx.rotate(armAngle);
-                    ctx.fillStyle = '#444';
-                    ctx.fillRect(0, -uziSize/4, uziBarrelLength, uziSize/2); // Barrel
-                    ctx.fillRect(-uziSize/2, -uziSize/2, uziSize, uziSize); // Body of gun
-                    ctx.restore();
+                        // Draw Gun
+                        ctx.save();
+                        ctx.translate(armEndX, armEndY);
+                        ctx.rotate(armAngle);
+                        ctx.fillStyle = '#444'; // Gun color
+                        ctx.fillRect(0, -gunSize/4, gunBarrelLength, gunSize/2); // Barrel
+                        ctx.fillRect(-gunSize/2, -gunSize/2, gunSize, gunSize); // Body of gun
+                        ctx.restore();
+                    });
 
                 } else {
-                    // Default arms for Johnny or if Dixie doesn't have dual uzis yet
+                    // Default arms if no guns are drawn (e.g., Dixie without Dual Uzis)
                     // Left Arm
                     ctx.save();
                     ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
@@ -2210,9 +2203,9 @@
                     miniMapCtx.bezierCurveTo(
                         miniX - heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
                         miniX - heartMiniSize * 1.0, miniY - heartMiniSize * 0.7, // Corrected from miniMapCtx.currentY
-                        miniX - heartMiniSize * 0.5, miniY + heartMiniSize * 0.3
+                        miniX - heartMiniSize * 0.5, miniMapCtx.currentY + heartMiniSize * 0.3
                     );
-                    miniMapCtx.closePath();
+                    ctx.closePath();
                     miniMapCtx.fill();
                 }
             });
@@ -2277,12 +2270,12 @@
                     unlockInfo.className = 'unlock-info';
                     unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Hotel Lobby (Your Best: ${highestHotelLobbyScore})`;
                     card.appendChild(unlockInfo);
-                } else if (level.id === 'desert_oasis' && level.unlockScore > 0 && highestTheParkScore < level.unlockScore) { // New unlock condition
+                } else if (level.id === 'desert_oasis' && level.unlockScore > 0 && Math.max(highestHotelLobbyScore, highestTheParkScore) < level.unlockScore) { // Changed unlock condition for Desert Oasis
                     isLocked = true;
                     card.classList.add('locked');
                     const unlockInfo = document.createElement('p');
                     unlockInfo.className = 'unlock-info';
-                    unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in The Park (Your Best: ${highestTheParkScore})`;
+                    unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Any Level (Your Best: ${Math.max(highestHotelLobbyScore, highestTheParkScore)})`; // Updated message
                     card.appendChild(unlockInfo);
                 }
 
@@ -3239,7 +3232,7 @@
         // Function to add a single dog ally
         function addAllyDog() {
             const numDogs = allyDogs.length + 1;
-            const baseOrbitRadius = 60; // Base distance from player
+            const baseOrbitRadius = DOG_LEASH_RADIUS; // Base distance from player (now uses the constant)
             const orbitSpread = 20; // How much each dog's radius varies
             const initialAngleOffset = Math.random() * Math.PI * 2; // Random starting angle for the first dog
 
@@ -4648,6 +4641,7 @@
                 player.color = '#6A808C'; 
                 player.baseColor = '#6A808C';
                 allyDogs = []; // Ensure dogs are cleared for Johnny
+                // Johnny always has his pistol (default weapon)
             } else if (currentCharacter === 'dixie') {
                 player.health = 120; // Increased base health for Dixie
                 player.maxHealth = 120; // Increased max health for Dixie
@@ -4656,8 +4650,8 @@
                 allyDogs = []; // Clear any existing dogs before adding new ones
                 addAllyDog(); // Dixie starts with 1 dog ally
                 player.stats.dualUziActive = true; 
-                player.stats.dualUziFireRate = 8;
-                player.stats.dualUziDamage = 2;
+                player.stats.dualUziFireRate = 10; // Base dual uzi fire rate (CHANGED)
+                player.stats.dualUziDamage = 4; // Base dual uzi damage (CHANGED)
             }
 
             currentMusicPatternIndex = 0;
