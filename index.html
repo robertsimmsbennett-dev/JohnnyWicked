@@ -353,7 +353,7 @@
             box-shadow: 0 5px 10px rgba(0, 255, 255, 0.4);
         }
 
-        #high-scores-list {
+        #high-scores-list, #start-menu-high-scores-list {
             list-style: none;
             padding: 0;
             margin-top: 20px;
@@ -366,41 +366,19 @@
             background-color: rgba(0, 0, 0, 0.5);
         }
 
-        #high-scores-list li {
+        #high-scores-list li, #start-menu-high-scores-list li {
             padding: 5px 0;
             border-bottom: 1px dashed #222;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        #high-scores-list li:last-child {
+        #high-scores-list li:last-child, #start-menu-high-scores-list li:last-child {
             border-bottom: none;
         }
-        #high-scores-list li span {
+        #high-scores-list li span, #start-menu-high-scores-list li span {
             color: #00ffff;
             font-weight: bold;
-        }
-
-        /* Mini-map styles */
-        #miniMapContainer {
-            position: absolute;
-            top: 10px; /* Adjust as needed */
-            right: 10px; /* Adjust as needed */
-            width: 150px; /* Fixed width */
-            height: 150px; /* Fixed height */
-            background-color: rgba(0, 0, 0, 0.8);
-            border: 1px solid #555;
-            border-radius: 5px;
-            overflow: hidden; /* Ensure content stays within bounds */
-            pointer-events: none; /* Do not block clicks on game elements */
-            z-index: 10; /* Above game canvas, below menus */
-        }
-
-        #miniMapCanvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            image-rendering: pixelated;
         }
 
         /* Level Select Menu Styles */
@@ -480,6 +458,10 @@
             <p>New: Enemies can now shoot back! Be careful of the gunmen.</p>
             <button id="startButton">Start Game</button>
             <button id="levelSelectButton">Level Select</button>
+            <h3>Global High Scores</h3>
+            <ul id="start-menu-high-scores-list">
+                <!-- High scores will be loaded here -->
+            </ul>
         </div>
 
         <div id="game-over-menu" class="menu" style="display: none;">
@@ -592,6 +574,8 @@
                         window.highestHotelLobbyScore = score;
                         console.log("Loaded highest Hotel Lobby score:", window.highestHotelLobbyScore);
                     });
+                    // Display high scores on start menu after Firebase is initialized
+                    window.displayHighScores('start-menu-high-scores-list');
                 } else {
                     console.log("Firebase user not signed in.");
                     window.fb.userId = null; // Ensure userId is null if not authenticated
@@ -607,7 +591,7 @@
 
             const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
             try {
-                console.log(`[Firebase Save] Attempting to save score for name: ${name}, score: ${score}`);
+                console.log(`[Firebase Save] Attempting to save score for name: ${name}, score: ${score}, levelId: ${levelId}`); // Added levelId
                 await addDoc(highScoresCollection, {
                     name: name,
                     score: score,
@@ -692,7 +676,6 @@
                 return 0;
             } catch (e) {
                 console.error(`Error loading user level score for ${levelId}: `, e);
-                return 0;
             }
         };
     </script>
@@ -712,6 +695,7 @@
         const playerNameInput = document.getElementById('playerNameInput');
         const saveScoreButton = document.getElementById('saveScoreButton');
         const highScoresList = document.getElementById('high-scores-list');
+        const startMenuHighScoresList = document.getElementById('start-menu-high-scores-list'); // New element for start menu
         const pauseButton = document.getElementById('pauseButton'); 
         const menuButton = document.getElementById('menuButton');     
         const gameMenu = document.getElementById('game-menu');       
@@ -830,6 +814,12 @@
                 forcefieldDamage: 0,     
                 forcefieldRadius: 0,     
                 leashWhipDamage: 0,      
+                knifeDamage: 0, // New: Knife damage
+                knifeCount: 0,  // New: Number of knives thrown
+                knifeCooldown: 1.5, // New: Cooldown for knife throw
+                swordDamage: 0, // New: Sword damage
+                swordPierce: 0, // New: Sword pierce
+                swordCooldown: 3, // New: Cooldown for sword throw
             },
             upgrades: {
                 damage: 0,
@@ -855,6 +845,8 @@
                 leashWhip: 0,            
                 dogStrength: 0,          
                 dogSpeed: 0,             
+                knifeThrow: 0, // New: Knife Throw upgrade level
+                swordThrow: 0, // New: Sword Throw upgrade level
             },
             burstChargeCooldown: 5, 
             burstChargeTimer: 0, 
@@ -873,6 +865,8 @@
             forcefieldTimer: 0,      
             forcefieldHitEnemies: new Set(), 
             leashWhipTimer: 0,       
+            knifeThrowTimer: 0, // New: Timer for knife throw cooldown
+            swordThrowTimer: 0, // New: Timer for sword throw cooldown
         };
 
         // Game control states
@@ -892,6 +886,7 @@
         let allyDogs = []; 
         let dogProjectileDamage = 0;
         let dogProjectileSpeed = 0;
+        const DOG_LEASH_RADIUS = 120; // Increased leash radius for dogs
 
         // Enemy and power-up configuration
         const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull', 'enforcer']; 
@@ -1027,7 +1022,7 @@
                 player.dualUziTimer = 0; 
               },
               next: () => `Fires two streams at ${8 + (player.upgrades.dualUzi + 1) * 4} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
-              characters: ['johnny', 'dixie'] 
+              characters: ['johnny'] // Removed 'dixie' from here
             },
             { id: 'boomerang', name: 'Boomerang', description: 'Launches a spinning boomerang that hits enemies and returns.',
               level: () => player.upgrades.boomerang,
@@ -1091,6 +1086,28 @@
               effect: () => { player.upgrades.dogSpeed++; allyDogs.forEach(dog => dog.speed += 20); },
               next: () => `Increase dog movement speed by 20. (Lvl ${player.upgrades.dogSpeed + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
+            },
+            { id: 'knifeThrow', name: 'Knife Throw', description: 'Throws a sharp knife at the closest enemy.',
+              level: () => player.upgrades.knifeThrow,
+              effect: () => {
+                player.upgrades.knifeThrow++;
+                player.stats.knifeDamage = 20 + player.upgrades.knifeThrow * 10;
+                player.stats.knifeCount = 1 + Math.floor(player.upgrades.knifeThrow / 2);
+                player.stats.knifeCooldown = Math.max(0.5, 1.5 - player.upgrades.knifeThrow * 0.1);
+              },
+              next: () => `Throws ${1 + Math.floor((player.upgrades.knifeThrow + 1) / 2)} knives for ${20 + (player.upgrades.knifeThrow + 1) * 10} damage. Cooldown: ${(Math.max(0.5, 1.5 - (player.upgrades.knifeThrow + 1) * 0.1)).toFixed(1)}s. (Lvl ${player.upgrades.knifeThrow + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['johnny', 'dixie']
+            },
+            { id: 'swordThrow', name: 'Sword Throw', description: 'Throws a powerful, piercing sword.',
+              level: () => player.upgrades.swordThrow,
+              effect: () => {
+                player.upgrades.swordThrow++;
+                player.stats.swordDamage = 50 + player.upgrades.swordThrow * 20;
+                player.stats.swordPierce = 1 + Math.floor(player.upgrades.swordThrow / 2);
+                player.stats.swordCooldown = Math.max(1, 3 - player.upgrades.swordThrow * 0.2);
+              },
+              next: () => `Throws a sword that pierces ${1 + Math.floor((player.upgrades.swordThrow + 1) / 2)} enemies for ${50 + (player.upgrades.swordThrow + 1) * 20} damage. Cooldown: ${(Math.max(1, 3 - (player.upgrades.swordThrow + 1) * 0.2)).toFixed(1)}s. (Lvl ${player.upgrades.swordThrow + 1}/${MAX_UPGRADE_LEVEL})`,
+              characters: ['dixie']
             }
         ];
         
@@ -1180,7 +1197,7 @@
             let radius = circle.size / 2;
 
             if (distanceSquared < radius * radius) {
-                let distance = Math.sqrt(distanceSquared);
+                let distance = Math.sqrt(distanceSquared); // Define distance here
                 if (distance === 0) { // Circle center is inside rectangle
                     // Push out along the axis with least penetration
                     let overlapX = Math.min(Math.abs(circle.x - rect.x), Math.abs((rect.x + rect.width) - circle.x));
@@ -1433,6 +1450,7 @@
             const s = size;
             const screenX = x - camera.x;
             const screenY = y - camera.y;
+            const currentCharacter = player.character || 'johnny'; // Assuming player.character holds 'johnny' or 'dixie'
 
             if (spriteName === 'player') {
                 // Head
@@ -1443,23 +1461,38 @@
                 ctx.fillStyle = player.color; 
                 ctx.fillRect(screenX - s/2, screenY - s, s, s*2);
 
-                // Legs
+                // Legs - dynamic based on movement or character-specific idle pose
                 if (isMoving) {
                     const legOffset = Math.sin(frame * 0.5) * s/4; 
                     ctx.fillStyle = player.color; 
                     ctx.fillRect(screenX - s/4, screenY + s + legOffset, s/4, s); 
                     ctx.fillRect(screenX + s/4, screenY + s - legOffset, s/4, s); 
                 } else {
+                    // Acrobatic idle poses
                     ctx.fillStyle = player.color; 
-                    ctx.fillRect(screenX - s/4, screenY + s, s/4, s); 
-                    ctx.fillRect(screenX + s/4, screenY + s, s/4, s); 
+                    if (currentCharacter === 'johnny') {
+                        // Johnny's idle pose: one leg slightly bent, ready stance
+                        const idleOffset = Math.sin(survivalTime * 2) * s * 0.05; // Subtle bob
+                        ctx.fillRect(screenX - s/4, screenY + s + idleOffset, s/4, s); 
+                        ctx.fillRect(screenX + s/4, screenY + s - idleOffset, s/4, s); 
+                    } else {
+                        // Default static pose
+                        ctx.fillRect(screenX - s/4, screenY + s, s/4, s); 
+                        ctx.fillRect(screenX + s/4, screenY + s, s/4, s); 
+                    }
                 }
 
                 // Arms - dynamic, facing shoot direction
-                const armLength = s * 0.8;
-                const armWidth = s * 0.3;
-                const shoulderXOffset = s * 0.4; 
-                const shoulderYOffset = s * 0.5; 
+                let armLength = s * 0.8;
+                let armWidth = s * 0.3;
+                let shoulderXOffset = s * 0.4; 
+                let shoulderYOffset = s * 0.5; 
+
+                // Dixie specific arm adjustments
+                if (currentCharacter === 'dixie') {
+                    armLength = s * 1.7; // Longer arms for Dixie (roughly half total body height)
+                    shoulderYOffset = s * 0.4; // Adjust shoulder position slightly
+                }
 
                 ctx.fillStyle = player.color; 
 
@@ -1705,15 +1738,63 @@
                 drawEnemyPixelArt(ctx, enemy);
             });
         }
+
+        // Function to draw a bone-shaped projectile
+        function drawBoneProjectile(ctx, x, y, size) {
+            ctx.fillStyle = '#D2B48C'; // Bone color
+            ctx.beginPath();
+            // Main body of the bone (rectangle)
+            ctx.ellipse(x, y, size * 1.5, size * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ends of the bone (circles)
+            ctx.beginPath();
+            ctx.arc(x - size * 1.5, y, size * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + size * 1.5, y, size * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
         function drawProjectiles() {
             projectiles.forEach(p => {
                 const screenX = p.x - camera.x;
                 const screenY = p.y - camera.y;
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2);
-                ctx.fill();
+                
+                if (p.color === '#D2B48C') { // If it's a bone projectile
+                    drawBoneProjectile(ctx, screenX, screenY, p.size);
+                } else if (p.type === 'knife') {
+                    // Draw a knife shape
+                    ctx.fillStyle = p.color;
+                    ctx.save();
+                    ctx.translate(screenX, screenY);
+                    ctx.rotate(Math.atan2(p.vy, p.vx)); // Orient knife with its direction
+                    ctx.beginPath();
+                    ctx.moveTo(-p.size, -p.size / 4);
+                    ctx.lineTo(p.size, 0);
+                    ctx.lineTo(-p.size, p.size / 4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                } else if (p.type === 'sword') {
+                    // Draw a sword shape
+                    ctx.fillStyle = p.color;
+                    ctx.save();
+                    ctx.translate(screenX, screenY);
+                    ctx.rotate(Math.atan2(p.vy, p.vx)); // Orient sword with its direction
+                    // Blade
+                    ctx.fillRect(-p.size * 1.5, -p.size / 4, p.size * 3, p.size / 2);
+                    // Hilt
+                    ctx.fillStyle = '#8B4513'; // Brown hilt
+                    ctx.fillRect(-p.size * 1.8, -p.size / 2, p.size * 0.5, p.size);
+                    ctx.restore();
+                }
+                else {
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             });
             enemyProjectiles.forEach(p => {
                 const screenX = p.x - camera.x;
@@ -2029,7 +2110,7 @@
                     miniMapCtx.bezierCurveTo(
                         miniX + heartMiniSize * 1.0, miniY - heartMiniSize * 0.7,
                         miniX + heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
-                        miniX, miniY + heartMiniSize * 1.0
+                        miniX, miniMapCtx.currentY + heartMiniSize * 1.0
                     );
                     miniMapCtx.bezierCurveTo(
                         miniX - heartMiniSize * 1.5, miniY + heartMiniSize * 0.3,
@@ -2048,6 +2129,7 @@
             gameMenu.style.display = 'none'; 
             levelSelectMenu.style.display = 'none'; 
             characterSelectMenu.style.display = 'none'; 
+            // Removed: displayHighScores('start-menu-high-scores-list'); // This call is now handled by onAuthStateChanged in initFirebase
         }
         
         function showGameOverMenu() {
@@ -2301,7 +2383,7 @@
                 }
             }
 
-            // Dual Uzi logic (for both Johnny and Dixie if upgraded/default)
+            // Dual Uzi logic (for Johnny or Dixie if upgraded/default)
             if (player.stats.dualUziActive) {
                 player.dualUziTimer += effectiveDt;
                 const uziCooldown = 1 / player.stats.dualUziFireRate;
@@ -2395,6 +2477,60 @@
                         playSound('playerShot'); 
                     }
                     player.leashWhipTimer = 0;
+                }
+            }
+
+            // Knife Throw Logic
+            if (player.upgrades.knifeThrow > 0) {
+                player.knifeThrowTimer += effectiveDt;
+                if (player.knifeThrowTimer >= player.stats.knifeCooldown) {
+                    const closestEnemy = findClosestEnemy();
+                    if (closestEnemy) {
+                        const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                        for (let i = 0; i < player.stats.knifeCount; i++) {
+                            const spread = (i - (player.stats.knifeCount - 1) / 2) * 0.1; // Small spread for multiple knives
+                            const projectileAngle = angle + spread;
+                            projectiles.push({
+                                x: player.x,
+                                y: player.y,
+                                vx: Math.cos(projectileAngle) * 500, // Fixed speed for knives
+                                vy: Math.sin(projectileAngle) * 500,
+                                size: 8,
+                                damage: ultimateActive ? player.stats.knifeDamage * 3 : player.stats.knifeDamage,
+                                color: '#A9A9A9', // Dark gray for knife
+                                pierce: 0, // Knives don't pierce by default
+                                hits: 0,
+                                type: 'knife' // New type for drawing
+                            });
+                        }
+                        playSound('playerShot');
+                        player.knifeThrowTimer = 0;
+                    }
+                }
+            }
+
+            // Sword Throw Logic (Dixie only)
+            if (currentCharacter === 'dixie' && player.upgrades.swordThrow > 0) {
+                player.swordThrowTimer += effectiveDt;
+                if (player.swordThrowTimer >= player.stats.swordCooldown) {
+                    const closestEnemy = findClosestEnemy();
+                    if (closestEnemy) {
+                        const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                        projectiles.push({
+                            x: player.x,
+                            y: player.y,
+                            vx: Math.cos(angle) * 600, // Fixed speed for swords
+                            vy: Math.sin(angle) * 600,
+                            size: 12,
+                            damage: ultimateActive ? player.stats.swordDamage * 3 : player.stats.swordDamage,
+                            color: '#ADD8E6', // Light blue for sword
+                            pierce: ultimateActive ? player.stats.swordPierce + 1 : player.stats.swordPierce,
+                            hits: 0,
+                            type: 'sword' // New type for drawing
+                        });
+                        playSound('playerShot');
+                        player.swordThrowTimer = 0;
+                    }
                 }
             }
         }
@@ -2831,68 +2967,121 @@
         }
 
         function updateAllyDogs(dt) {
+            const effectiveDt = dt * gameSpeedMultiplier;
+            const leashRadius = DOG_LEASH_RADIUS; 
+            const attackRadius = 400; 
+
             allyDogs.forEach(dog => {
-                const effectiveDt = dt * gameSpeedMultiplier;
-                const closestEnemy = enemies.find(e => !e.controlled); 
+                let targetX = dog.x;
+                let targetY = dog.y;
+                let angleToTarget;
 
-                if (closestEnemy) {
-                    const angle = Math.atan2(closestEnemy.y - dog.y, closestEnemy.x - dog.x);
-                    dog.x += Math.cos(angle) * dog.speed * effectiveDt;
-                    dog.y += Math.sin(angle) * dog.speed * effectiveDt;
+                const distToPlayer = dist(dog, player);
 
-                    // Dog melee attack
-                    if (dist(dog, closestEnemy) < (dog.size / 2 + closestEnemy.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
-                        closestEnemy.health -= dog.damage;
-                        showDamageNumber(dog.damage, closestEnemy.x, closestEnemy.y);
-                        if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
-                            playSound('enemyHit');
-                            lastEnemyHitSoundTime = survivalTime;
-                        }
-                        dog.lastAttackTime = survivalTime; 
-                    }
+                // Prioritize attacking enemies if in range
+                let closestEnemyInDixieRange = null;
+                let minDistanceToDixieEnemy = Infinity;
 
-                    // Dog shooting bones (Dixie's specific upgrade)
-                    if (currentCharacter === 'dixie' && player.upgrades.dogBones > 0) {
-                        dog.shootTimer += effectiveDt;
-                        if (dog.shootTimer >= 1 / dog.attackSpeed) {
-                            projectiles.push({
-                                x: dog.x,
-                                y: dog.y,
-                                vx: Math.cos(angle) * dogProjectileSpeed,
-                                vy: Math.sin(angle) * dogProjectileSpeed,
-                                size: 8, 
-                                damage: dogProjectileDamage,
-                                color: '#D2B48C', 
-                                pierce: 0,
-                                hits: 0
-                            });
-                            playSound('playerShot'); 
-                            dog.shootTimer = 0;
+                enemies.forEach(enemy => {
+                    if (!enemy.controlled) {
+                        const distToDixie = dist(player, enemy);
+                        if (distToDixie < attackRadius && distToDixie < minDistanceToDixieEnemy) {
+                            minDistanceToDixieEnemy = distToDixie;
+                            closestEnemyInDixieRange = enemy;
                         }
                     }
+                });
 
+                if (closestEnemyInDixieRange) {
+                    // Move towards the closest enemy
+                    angleToTarget = Math.atan2(closestEnemyInDixieRange.y - dog.y, closestEnemyInDixieRange.x - dog.x);
+                    targetX = dog.x + Math.cos(angleToTarget) * dog.speed * effectiveDt;
+                    targetY = dog.y + Math.sin(angleToTarget) * dog.speed * effectiveDt;
                 } else {
-                    const angle = Math.atan2(player.y - dog.y, player.x - dog.x);
-                    dog.x += Math.cos(angle) * dog.speed * effectiveDt;
-                    dog.y += Math.sin(angle) * dog.speed * effectiveDt;
+                    // Orbit the player if no enemies in range
+                    dog.orbitAngle = (dog.orbitAngle + effectiveDt * 0.8) % (Math.PI * 2); 
+                    targetX = player.x + Math.cos(dog.orbitAngle) * dog.orbitRadius;
+                    targetY = player.y + Math.sin(dog.orbitAngle) * dog.orbitRadius;
+
+                    // Move towards the target orbit position
+                    const dx = targetX - dog.x;
+                    const dy = targetY - dog.y;
+                    const distToOrbit = Math.sqrt(dx * dx + dy * dy);
+                    if (distToOrbit > 5) { // Only move if not already close to orbit position
+                        const angleToOrbit = Math.atan2(dy, dx);
+                        dog.x += Math.cos(angleToOrbit) * dog.speed * effectiveDt;
+                        dog.y += Math.sin(angleToOrbit) * dog.speed * effectiveDt;
+                    }
+                }
+
+                // Dog melee attack
+                if (closestEnemyInDixieRange && dist(dog, closestEnemyInDixieRange) < (dog.size / 2 + closestEnemyInDixieRange.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
+                    closestEnemyInDixieRange.health -= dog.damage;
+                    showDamageNumber(dog.damage, closestEnemyInDixieRange.x, closestEnemyInDixieRange.y);
+                    if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
+                        playSound('enemyHit');
+                        lastEnemyHitSoundTime = survivalTime;
+                    }
+                    dog.lastAttackTime = survivalTime; 
+                }
+
+                // Dog shooting bones (Dixie's specific upgrade)
+                if (currentCharacter === 'dixie' && player.upgrades.dogBones > 0 && closestEnemyInDixieRange) {
+                    dog.shootTimer += effectiveDt;
+                    if (dog.shootTimer >= 1 / dog.attackSpeed) {
+                        const angleToEnemy = Math.atan2(closestEnemyInDixieRange.y - dog.y, closestEnemyInDixieRange.x - dog.x);
+                        projectiles.push({
+                            x: dog.x,
+                            y: dog.y,
+                            vx: Math.cos(angleToEnemy) * dogProjectileSpeed,
+                            vy: Math.sin(angleToEnemy) * dogProjectileSpeed,
+                            size: 8, 
+                            damage: dogProjectileDamage,
+                            color: '#D2B48C', // Bone color
+                            pierce: 0,
+                            hits: 0
+                        });
+                        playSound('playerShot'); 
+                        dog.shootTimer = 0;
+                    }
                 }
             });
         }
 
         // Function to add a single dog ally
         function addAllyDog() {
-            allyDogs.push({
-                x: player.x + (Math.random() - 0.5) * 50, 
-                y: player.y + (Math.random() - 0.5) * 50,
-                size: 20,
-                color: '#8B4513', 
-                speed: 200 + player.upgrades.dogSpeed * 20, 
-                damage: 10 + player.upgrades.dogStrength * 5, 
-                lastAttackTime: 0, 
-                attackCooldown: 0.5,
-                shootTimer: 0, 
-                attackSpeed: 1 
-            });
+            const numDogs = allyDogs.length + 1;
+            const baseOrbitRadius = 60; // Base distance from player
+            const orbitSpread = 20; // How much each dog's radius varies
+            const initialAngleOffset = Math.random() * Math.PI * 2; // Random starting angle for the first dog
+
+            // Recalculate positions for all dogs (existing + new) to ensure even spread
+            for (let i = 0; i < numDogs; i++) {
+                const angle = initialAngleOffset + (Math.PI * 2 / numDogs) * i;
+                const radius = baseOrbitRadius + (i % 2) * orbitSpread; // Alternate radius for spreading
+                
+                if (i < allyDogs.length) {
+                    // Update existing dog's orbit properties
+                    allyDogs[i].orbitAngle = angle;
+                    allyDogs[i].orbitRadius = radius;
+                } else {
+                    // Add new dog
+                    allyDogs.push({
+                        x: player.x + Math.cos(angle) * radius, 
+                        y: player.y + Math.sin(angle) * radius,
+                        size: 20,
+                        color: '#8B4513', 
+                        speed: 200 + player.upgrades.dogSpeed * 20, 
+                        damage: 10 + player.upgrades.dogStrength * 5, 
+                        lastAttackTime: 0, 
+                        attackCooldown: 0.5,
+                        shootTimer: 0, 
+                        attackSpeed: 1,
+                        orbitAngle: angle,        // New: Store orbit angle
+                        orbitRadius: radius       // New: Store orbit radius
+                    });
+                }
+            }
             console.log(`[Dixie] Dog added. Current dog count: ${allyDogs.length}`);
         }
 
@@ -3020,6 +3209,13 @@
                         enemy.health -= damageDealt;
                         ultimateCharge += ultimateChargePerHit;
                         showDamageNumber(damageDealt, enemy.x, enemy.y);
+                        // Add particle effect for knife hits
+                        if (p.type === 'knife' || p.type === 'sword') {
+                            spawnParticles(enemy.x, enemy.y, {r: 200, g: 200, b: 200}); 
+                        } else {
+                            spawnParticles(enemy.x, enemy.y, enemy.color);
+                        }
+
                         if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
                             playSound('enemyHit'); 
                             lastEnemyHitSoundTime = survivalTime;
@@ -3607,6 +3803,19 @@
             dogProjectileDamage = 0; 
             dogProjectileSpeed = 0;  
 
+            // Reset new stats/upgrades
+            player.stats.knifeDamage = 0;
+            player.stats.knifeCount = 0;
+            player.stats.knifeCooldown = 1.5;
+            player.stats.swordDamage = 0;
+            player.stats.swordPierce = 0;
+            player.stats.swordCooldown = 3;
+
+            player.upgrades.knifeThrow = 0;
+            player.upgrades.swordThrow = 0;
+
+            player.knifeThrowTimer = 0;
+            player.swordThrowTimer = 0;
 
             updateMusicPatterns(currentMusicPatternIndex);
         }
@@ -3708,6 +3917,13 @@
             if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) { 
                 player.leashWhipTimer += effectiveDt;
             }
+            if (player.upgrades.knifeThrow > 0) { // New: Update knife throw timer
+                player.knifeThrowTimer += effectiveDt;
+            }
+            if (player.upgrades.swordThrow > 0) { // New: Update sword throw timer
+                player.swordThrowTimer += effectiveDt;
+            }
+
 
             spinningKnives.forEach(knife => {
                 knife.angle += knife.rotationSpeed * effectiveDt;
@@ -3810,7 +4026,7 @@
                 playerNameInput.value = '';
                 playerNameInput.focus();
             } else {
-                displayHighScores();
+                displayHighScores('high-scores-list'); // Display high scores on game over menu
             }
         }
 
@@ -3822,21 +4038,26 @@
                     await window.saveHighScoreFirebase(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
                 }
                 highScoreModal.style.display = 'none';
-                displayHighScores();
+                displayHighScores('high-scores-list'); // Display high scores on game over menu
             } else {
                 console.warn("Please enter a name to save your high score.");
             }
         }
 
-        async function displayHighScores() {
+        async function displayHighScores(targetElementId) {
             const highScores = await window.getHighScoresFirebase();
-            highScoresList.innerHTML = '';
-            console.log("[Display High Scores] High scores to display:", highScores);
+            const targetList = document.getElementById(targetElementId);
+            if (!targetList) {
+                console.error(`Target element with ID ${targetElementId} not found.`);
+                return;
+            }
+            targetList.innerHTML = '';
+            console.log(`[Display High Scores for ${targetElementId}] High scores to display:`, highScores);
             
             if (highScores.length === 0) {
                 const li = document.createElement('li');
                 li.textContent = 'No high scores yet. Be the first!';
-                highScoresList.appendChild(li);
+                targetList.appendChild(li);
                 return;
             }
 
@@ -3846,8 +4067,8 @@
                     <span>${index + 1}. ${s.name}</span>
                     <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${s.levelId === 'hotel_lobby' ? 'Hotel' : 'Park'})</span>
                 `;
-                highScoresList.appendChild(li);
-                console.log(`[Display High Scores] Displaying score: ${s.name}, ${s.score}`);
+                targetList.appendChild(li);
+                console.log(`[Display High Scores for ${targetElementId}] Displaying score: ${s.name}, ${s.score}`);
             });
         }
 
@@ -4119,6 +4340,12 @@
                 forcefieldDamage: 0,
                 forcefieldRadius: 0,
                 leashWhipDamage: 0, 
+                knifeDamage: 0, // New: Knife damage
+                knifeCount: 0,  // New: Number of knives thrown
+                knifeCooldown: 1.5, // New: Cooldown for knife throw
+                swordDamage: 0, // New: Sword damage
+                swordPierce: 0, // New: Sword pierce
+                swordCooldown: 3, // New: Cooldown for sword throw
             };
             player.upgrades = {
                 damage: 0, attackSpeed: 0, health: 0, speed: 0, pierce: 0, multiShot: 0, 
@@ -4133,6 +4360,8 @@
                 leashWhip: 0,     
                 dogStrength: 0,   
                 dogSpeed: 0,      
+                knifeThrow: 0, // New: Knife Throw upgrade level
+                swordThrow: 0, // New: Sword Throw upgrade level
             };
             player.burstChargeCooldown = 5; 
             player.burstChargeTimer = 0; 
@@ -4149,11 +4378,14 @@
             player.forcefieldTimer = 0; 
             player.forcefieldHitEnemies.clear(); 
             player.leashWhipTimer = 0; 
+            player.knifeThrowTimer = 0; // New: Reset knife throw timer
+            player.swordThrowTimer = 0; // New: Reset sword throw timer
 
             dogProjectileDamage = 0; 
             dogProjectileSpeed = 0;  
 
             // Character specific initializations
+            player.character = currentCharacter; // Set the current character on the player object
             if (currentCharacter === 'johnny') {
                 player.color = '#6A808C'; 
                 player.baseColor = '#6A808C';
