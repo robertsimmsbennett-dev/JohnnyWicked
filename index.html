@@ -538,6 +538,165 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase variables (will be initialized in init function)
+        window.fb = {};
+
+        window.initFirebase = async function() {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.error("Firebase config is missing. High score system will not function.");
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            window.fb.db = getFirestore(app);
+            window.fb.auth = getAuth(app);
+            window.fb.appId = appId; // Store appId for later use
+
+            // Sign in anonymously if no custom token is provided
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(window.fb.auth, __initial_auth_token);
+                    console.log("Signed in with custom token.");
+                } catch (error) {
+                    console.error("Error signing in with custom token:", error);
+                    await signInAnonymously(window.fb.auth);
+                    console.log("Signed in anonymously instead.");
+                }
+            } else {
+                await signInAnonymously(window.fb.auth);
+                console.log("Signed in anonymously.");
+            }
+
+            // Listen for auth state changes to ensure user is ready
+            onAuthStateChanged(window.fb.auth, (user) => {
+                if (user) {
+                    window.fb.userId = user.uid;
+                    console.log("Firebase user ready:", window.fb.userId);
+                    // Load user's level scores once authenticated
+                    window.loadUserLevelScore('hotel_lobby').then(score => {
+                        window.highestHotelLobbyScore = score;
+                        console.log("Loaded highest Hotel Lobby score:", window.highestHotelLobbyScore);
+                    });
+                    // Load 'the_park' score
+                    window.loadUserLevelScore('the_park').then(score => {
+                        window.highestTheParkScore = score;
+                        console.log("Loaded highest The Park score:", window.highestTheParkScore);
+                    });
+                    // Display high scores on start menu after Firebase is initialized
+                    window.displayHighScores('start-menu-high-scores-list');
+                } else {
+                    console.log("Firebase user not signed in.");
+                    window.fb.userId = null; // Ensure userId is null if not authenticated
+                }
+            });
+        };
+
+        window.saveHighScoreFirebase = async function(name, score, time, level, levelId) {
+            if (!window.fb.db || !window.fb.userId) {
+                console.error("Firestore not initialized or user not authenticated.");
+                return;
+            }
+
+            const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
+            try {
+                console.log(`[Firebase Save] Attempting to save score for name: ${name}, score: ${score}, levelId: ${levelId}`); // Added levelId
+                await addDoc(highScoresCollection, {
+                    name: name,
+                    score: score,
+                    survivalTime: time,
+                    level: level,
+                    levelId: levelId, // Save the level ID
+                    timestamp: Date.now(),
+                    userId: window.fb.userId
+                });
+                console.log("High score saved successfully to public high scores!");
+            } catch (e) {
+                console.error("Error adding document to public high scores: ", e);
+            }
+        };
+
+        window.getHighScoresFirebase = async function() {
+            if (!window.fb.db) {
+                console.error("Firestore not initialized.");
+                return [];
+            }
+
+            const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
+            const q = query(highScoresCollection, orderBy("score", "desc"), limit(10));
+            
+            try {
+                const querySnapshot = await getDocs(q);
+                const highScores = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    console.log("[Firebase Get] Fetched high score data:", data);
+                    highScores.push(data);
+                });
+                highScores.sort((a, b) => b.score - a.score); // Client-side sort just in case
+                return highScores;
+            } catch (e) {
+                console.error("Error getting documents from public high scores: ", e);
+                return [];
+            }
+        };
+
+        window.saveUserLevelScore = async function(levelId, score) {
+            if (!window.fb.db || !window.fb.userId) {
+                console.error("Firestore not initialized or user not authenticated for private data.");
+                return;
+            }
+
+            const userLevelScoreRef = doc(window.fb.db, `artifacts/${window.fb.appId}/users/${window.fb.userId}/levelScores`, levelId);
+            try {
+                const docSnap = await getDoc(userLevelScoreRef);
+                let currentBestScore = 0;
+                if (docSnap.exists()) {
+                    currentBestScore = docSnap.data().highestScore || 0;
+                }
+
+                if (score > currentBestScore) {
+                    await setDoc(userLevelScoreRef, { highestScore: score, timestamp: Date.now() });
+                    console.log(`User's highest score for ${levelId} updated to ${score}.`);
+                    // Update the global variable if it's for hotel lobby
+                    if (levelId === 'hotel_lobby') {
+                        window.highestHotelLobbyScore = score;
+                    } else if (levelId === 'the_park') { // Update for 'the_park'
+                        window.highestTheParkScore = score;
+                    }
+                } else {
+                    console.log(`Current score ${score} is not higher than existing best ${currentBestScore} for ${levelId}.`);
+                }
+            } catch (e) {
+                console.error(`Error saving user level score for ${levelId}: `, e);
+            }
+        };
+
+        window.loadUserLevelScore = async function(levelId) {
+            if (!window.fb.db || !window.fb.userId) {
+                console.warn("Firestore not initialized or user not authenticated for private data. Returning 0 for level score.");
+                return 0;
+            }
+
+            const userLevelScoreRef = doc(window.fb.db, `artifacts/${window.fb.appId}/users/${window.fb.userId}/levelScores`, levelId);
+            try {
+                const docSnap = await getDoc(userLevelScoreRef);
+                if (docSnap.exists()) {
+                    return docSnap.data().highestScore || 0;
+                }
+                return 0;
+            } catch (e) {
+                console.error(`Error loading user level score for ${levelId}: `, e);
+            }
+        };
+    </script>
 
     <script>
         // Get canvas and UI elements from the DOM
@@ -614,12 +773,6 @@
         let chests = []; 
         let drones = []; 
         let boomerangs = []; 
-        let leashWhips = []; // Array to store active leash whip visual effects
-
-        // Local storage variables for level progression
-        let highestHotelLobbyScore = 0;
-        let highestTheParkScore = 0;
-        let highestDesertOasisScore = 0; // New: for Desert Oasis
 
         // Camera for a larger game world
         let camera = {
@@ -680,8 +833,7 @@
                 forcefieldActive: false, 
                 forcefieldDamage: 0,     
                 forcefieldRadius: 0,     
-                leashWhipDamage: 15, // Base damage for leash whip
-                leashWhipRange: 75, // Base range for leash whip
+                leashWhipDamage: 0,      
                 knifeDamage: 0, // New: Knife damage
                 knifeCount: 0,  // New: Number of knives thrown
                 knifeCooldown: 1.5, // New: Cooldown for knife throw
@@ -711,7 +863,7 @@
                 forcefield: 0,           
                 dogPack: 0,              
                 dogBones: 0,             
-                leashWhip: 0, // Leash Whip upgrade level
+                leashWhip: 0,            
                 dogStrength: 0,          
                 dogSpeed: 0,             
                 knifeThrow: 0, // New: Knife Throw upgrade level
@@ -724,15 +876,14 @@
             shotgunTimer: 0, 
             dualUziTimer: 0, 
             boomerangTimer: 0, 
-            leashWhipTimer: 0, // Timer for leash whip attack cooldown
-            knifeThrowTimer: 0, // Timer for knife throw cooldown
-            swordThrowTimer: 0, // Timer for sword throw cooldown
             lastX: initialPlayerX,
             lastY: initialPlayerY,
             animationFrame: 0,
             isMoving: false,
             vx: 0, 
             vy: 0,
+            // New stats for shotgun range
+            shotgunRange: 200,
         };
 
         // Other game variables...
@@ -801,7 +952,7 @@
             { id: 'bulletproofSuit', name: 'Bulletproof Suit', description: 'Gain damage reduction.', effect: () => { player.stats.damageReduction += 0.05; player.upgrades.bulletproofSuit++; }, maxLevel: 5, icon: '🛡️' },
             { id: 'ultimateRecharge', name: 'Ultimate Recharge', description: 'Ultimate charges faster.', effect: () => { ultimateChargePerHit += 0.05; player.upgrades.ultimateRecharge++; }, maxLevel: 5, icon: '⚡' },
             { id: 'spinningKnives', name: 'Spinning Knives', description: 'Summon spinning knives that damage enemies on contact.', effect: () => { player.stats.spinningKnivesCount++; player.stats.spinningKnivesDamage += 10; player.upgrades.spinningKnives++; }, maxLevel: 5, icon: '🔪' },
-            { id: 'shotgun', name: 'Shotgun', description: 'Fire a cone of pellets.', effect: () => { player.stats.shotgunPellets = 5 + player.upgrades.shotgun * 2; player.stats.shotgunDamage = 15; player.stats.shotgunSpread = 0.5; player.upgrades.shotgun++; }, maxLevel: 5, icon: '�', characters: ['johnny', 'dixie'] },
+            { id: 'shotgun', name: 'Shotgun', description: 'Fire a cone of pellets.', effect: () => { player.stats.shotgunPellets = 5 + player.upgrades.shotgun * 2; player.stats.shotgunDamage = 15; player.stats.shotgunSpread = 0.5; player.upgrades.shotgun++; }, maxLevel: 5, icon: '🔫', characters: ['johnny', 'dixie'] },
             { id: 'shotgunRange', name: 'Shotgun Range', description: 'Increase the range of your shotgun.', effect: () => { player.stats.shotgunRange += 50; player.upgrades.shotgunRange++; }, maxLevel: 5, icon: '🔭', characters: ['johnny', 'dixie'] },
             { id: 'combatDrone', name: 'Combat Drone', description: 'Summon a combat drone that fires at enemies.', effect: () => { player.stats.droneCount++; player.stats.droneDamage += 10; player.stats.droneAttackSpeed += 2; player.upgrades.combatDrone++; }, maxLevel: 5, icon: '🚁', characters: ['johnny', 'dixie'] },
             { id: 'dualUzi', name: 'Dual Uzi', description: 'Fire a stream of fast projectiles.', effect: () => { player.stats.dualUziActive = true; player.stats.dualUziFireRate = 0.05; player.stats.dualUziDamage += 5; player.upgrades.dualUzi++; }, maxLevel: 5, icon: '🔫🔫', characters: ['johnny'] },
@@ -810,7 +961,7 @@
             { id: 'dogStrength', name: 'Dog Strength', description: 'Increase dog ally damage.', effect: () => { dogBaseDamage += 5; player.upgrades.dogStrength++; }, maxLevel: 5, icon: '💪', characters: ['dixie'] },
             { id: 'dogSpeed', name: 'Dog Speed', description: 'Increase dog ally movement speed.', effect: () => { dogBaseSpeed += 20; player.upgrades.dogSpeed++; }, maxLevel: 5, icon: '⚡', characters: ['dixie'] },
             { id: 'forcefield', name: 'Forcefield', description: 'Create a damaging forcefield around the player.', effect: () => { player.stats.forcefieldActive = true; player.stats.forcefieldDamage += 5; player.stats.forcefieldRadius += 10; player.upgrades.forcefield++; }, maxLevel: 5, icon: '🌀' },
-            { id: 'leashWhip', name: 'Leash Whip', description: 'Whip enemies with a spectral leash. Increases in range and damage.', effect: () => { player.stats.leashWhipDamage += 10; player.stats.leashWhipRange += 25; player.upgrades.leashWhip++; }, maxLevel: 5, icon: '⛓️', characters: ['dixie'] }, // Modified Leash Whip
+            { id: 'leashWhip', name: 'Leash Whip', description: 'Whip enemies with a spectral leash.', effect: () => { player.stats.leashWhipDamage += 10; player.leashWhipCooldown = 1.5; player.upgrades.leashWhip++; }, maxLevel: 5, icon: '⛓️', characters: ['dixie'] },
             { id: 'knifeThrow', name: 'Knife Throw', description: 'Throw a piercing knife.', effect: () => { player.stats.knifeDamage += 10; player.stats.knifeCount++; player.upgrades.knifeThrow++; }, maxLevel: 5, icon: '🔪' },
             { id: 'swordThrow', name: 'Sword Throw', description: 'Throw a powerful, piercing sword.', effect: () => { player.stats.swordDamage += 30; player.stats.swordPierce += 1; player.upgrades.swordThrow++; }, maxLevel: 3, icon: '🗡️' },
         ];
@@ -827,7 +978,7 @@
                 const isAvailable = !power.characters || power.characters.includes(currentCharacter);
                 const isMaxed = player.upgrades[power.id] >= power.maxLevel;
                 // Special condition for Shotgun and Dual Uzi
-                const hasWeapon = (player.upgrades.shotgun > 0 && power.id !== 'shotgun') || (player.upgrades.dualUzi > 0 && power.id !== 'dualUzi'); // Allow if it's the current weapon being upgraded
+                const hasWeapon = player.upgrades.shotgun > 0 || player.upgrades.dualUzi > 0;
                 const isWeaponUpgrade = power.id === 'shotgun' || power.id === 'dualUzi';
                 const isSpecificUpgrade = power.id === 'shotgunRange'; // New upgrade option
 
@@ -837,10 +988,8 @@
                 }
 
                 if (isWeaponUpgrade) {
-                    // Don't offer a new weapon if the player already has a different weapon
-                    if (isWeaponUpgrade && hasWeapon && player.upgrades[power.id] === 0) {
-                        return false;
-                    }
+                    // Don't offer a new weapon if the player already has one (except for starting weapon)
+                    return isAvailable && !isMaxed && !hasWeapon;
                 }
 
                 return isAvailable && !isMaxed;
@@ -855,73 +1004,21 @@
             return availablePowerups[randomIndex];
         }
 
-        class DogAlly {
-            constructor(x, y) {
-                this.x = x + (Math.random() - 0.5) * 50;
-                this.y = y + (Math.random() - 0.5) * 50;
-                this.size = 15;
-                this.color = '#8B4513';
-                this.speed = dogBaseSpeed;
-                this.health = 50;
-                this.maxHealth = 50;
-                this.target = null;
-                this.attackCooldown = 1.5; 
-                this.attackTimer = 0;
-            }
-
-            update(dt) {
-                const nearestEnemy = findNearestEnemy(this);
-                if (nearestEnemy) {
-                    const dx = nearestEnemy.x - this.x;
-                    const dy = nearestEnemy.y - this.y;
-                    const distance = dist(this, nearestEnemy);
-                    if (distance > 50) {
-                        const angle = Math.atan2(dy, dx);
-                        this.x += Math.cos(angle) * this.speed * dt;
-                        this.y += Math.sin(angle) * this.speed * dt;
-                    } else {
-                        // Stay in place and attack
-                    }
-
-                    // Dog attack logic
-                    this.attackTimer += dt;
-                    if (this.attackTimer >= this.attackCooldown) {
-                        if (player.upgrades.dogBones > 0) {
-                            // Create a projectile (bone)
-                            // Assuming Projectile class exists and can be adapted for ally projectiles
-                             const angle = Math.atan2(nearestEnemy.y - this.y, nearestEnemy.x - this.x);
-                             playerProjectiles.push({ // Using playerProjectiles for simplicity; could be allyProjectiles
-                                x: this.x,
-                                y: this.y,
-                                vx: Math.cos(angle) * player.stats.projectileSpeed,
-                                vy: Math.sin(angle) * player.stats.projectileSpeed,
-                                size: 5,
-                                damage: dogBaseDamage + dogProjectileDamage, // Combine base and projectile damage
-                                pierce: 1,
-                                isPlayerBullet: true,
-                                color: '#f5f5dc',
-                                lifetime: 2
-                            });
-                        } else {
-                            // Melee attack
-                            if (dist(this, nearestEnemy) < this.size / 2 + nearestEnemy.size / 2 + 5) {
-                                applyDamage(nearestEnemy, dogBaseDamage);
-                            }
-                        }
-                        this.attackTimer = 0;
-                    }
-                } else {
-                    // No enemies, follow the player
-                    const dx = player.x - this.x;
-                    const dy = player.y - this.y;
-                    const distance = dist(this, player);
-                    if (distance > 100) {
-                        const angle = Math.atan2(dy, dx);
-                        this.x += Math.cos(angle) * this.speed * dt;
-                        this.y += Math.sin(angle) * this.speed * dt;
-                    }
-                }
-            }
+        function createDogAlly() {
+            if (currentCharacter !== 'dixie') return;
+            const dog = {
+                x: player.x + (Math.random() - 0.5) * 50,
+                y: player.y + (Math.random() - 0.5) * 50,
+                size: 15,
+                color: '#8B4513',
+                speed: dogBaseSpeed,
+                health: 50,
+                maxHealth: 50,
+                target: null,
+                attackCooldown: 1.5, 
+                attackTimer: 0
+            };
+            allyDogs.push(dog);
         }
 
         // --- Game Logic Functions ---
@@ -1105,8 +1202,7 @@
             isPaused = true;
             Tone.Transport.stop(Tone.now());
 
-            // Save user's highest score for this level
-            saveUserLevelScoreLocal(currentLevelId, score);
+            await window.saveUserLevelScore(currentLevelId, score);
 
             gameOverMenu.style.display = 'block';
             document.getElementById('final-score').textContent = `Score: ${score}`;
@@ -1114,7 +1210,7 @@
             document.getElementById('final-level').textContent = `Level Reached: ${player.level}`;
 
             // Check if it's a high score and show modal if so
-            const currentHighScores = loadHighScoresFromLocalStorage();
+            const currentHighScores = await window.getHighScoresFirebase();
             const isHighScore = currentHighScores.length < 10 || score > Math.min(...currentHighScores.map(s => s.score));
             
             if (isHighScore) {
@@ -1213,7 +1309,7 @@
 
         // Audio and Music
         function playSound(soundName) {
-            if (isMusicMuted && soundName !== 'ultimateActivate' && soundName !== 'gameOver' && soundName !== 'playerHit' && soundName !== 'levelUp') return;
+            if (isMusicMuted && soundName !== 'ultimateActivate' && soundName !== 'gameOver' && soundName !== 'playerHit') return;
 
             switch(soundName) {
                 case 'shoot':
@@ -1259,8 +1355,8 @@
                 envelope: { attack: 0.05, decay: 0.2, sustain: 0.5, release: 0.5 }
             }).toDestination();
             
-            ultimateSynth = new Tone.NoiseSynth({ // FIX: Changed from Tone.Synth to Tone.NoiseSynth
-                noise: { type: "white" }, // Added noise type for NoiseSynth
+            ultimateSynth = new Tone.Synth({
+                oscillator: { type: "square" },
                 envelope: { attack: 0.1, decay: 0.5, sustain: 0.2, release: 0.8 }
             }).toDestination();
             
@@ -1269,8 +1365,8 @@
                 envelope: { attack: 0.1, decay: 1, sustain: 0.5, release: 2 }
             }).toDestination();
 
-            explosionSound = new Tone.NoiseSynth({ // FIX: Changed from Tone.Synth to Tone.NoiseSynth
-                noise: { type: "pink" }, // Added noise type for NoiseSynth
+            explosionSound = new Tone.Synth({
+                oscillator: { type: "noise" },
                 envelope: { attack: 0.005, decay: 0.2, sustain: 0.01, release: 0.1 }
             }).toDestination();
 
@@ -1498,13 +1594,13 @@
         }
 
         function drawLeashWhip(whip) {
-            const screenX1 = whip.x - camera.x;
-            const screenY1 = whip.y - camera.y;
-            const screenX2 = whip.endX - camera.x;
-            const screenY2 = whip.endY - camera.y;
+            const screenX1 = whip.x1 - camera.x;
+            const screenY1 = whip.y1 - camera.y;
+            const screenX2 = whip.x2 - camera.x;
+            const screenY2 = whip.y2 - camera.y;
 
-            ctx.strokeStyle = `rgba(255, 255, 255, ${1 - (whip.timer / whip.duration)})`;
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${whip.alpha})`;
+            ctx.lineWidth = whip.width;
             ctx.beginPath();
             ctx.moveTo(screenX1, screenY1);
             ctx.lineTo(screenX2, screenY2);
@@ -1705,7 +1801,7 @@
                     miniMapCtx.bezierCurveTo(
                         miniX - heartMiniSize * 0.5, miniY + heartMiniSize * 0.3,
                         miniX, miniY - heartMiniSize * 0.7,
-                        miniX + heartMiniSize * 0.5, miniMapY + heartMiniSize * 0.3
+                        miniX + heartMiniSize * 0.5, miniY + heartMiniSize * 0.3
                     );
                     miniMapCtx.fill();
                 }
@@ -1766,10 +1862,10 @@
                 camera.height = canvas.height / camera.zoom;
             });
             
-            // Load user level scores from local storage
-            highestHotelLobbyScore = loadUserLevelScoreLocal('hotel_lobby');
-            highestTheParkScore = loadUserLevelScoreLocal('the_park');
-            highestDesertOasisScore = loadUserLevelScoreLocal('desert_oasis');
+            // Check for firebase module, and if present, initialize it
+            if (window.initFirebase) {
+                window.initFirebase();
+            }
 
             // Start the main game loop
             requestAnimationFrame(gameLoop);
@@ -1823,7 +1919,7 @@
             updateBoomeangs(effectiveDt);
             updateSpinningKnives(effectiveDt);
             updateTemporaryPowerup(effectiveDt);
-            updateLeashWhips(effectiveDt); // Update leash whips
+            updateLeashWhips(effectiveDt);
             updateKnifeThrows(effectiveDt);
             updateSwordThrows(effectiveDt);
 
@@ -1971,39 +2067,6 @@
                     player.swordThrowTimer = 0;
                 }
             }
-             // Leash Whip update
-            if (player.upgrades.leashWhip > 0 && currentCharacter === 'dixie') {
-                player.leashWhipTimer += effectiveDt;
-                if (player.leashWhipTimer >= player.stats.leashWhipCooldown) {
-                    // Find the nearest enemy to determine whip direction
-                    const targetEnemy = findNearestEnemy(player);
-                    if (targetEnemy) {
-                        // Calculate angle to enemy for visual and hit detection
-                        const angle = Math.atan2(targetEnemy.y - player.y, targetEnemy.x - player.x);
-                        // Create the visual whip effect
-                        leashWhips.push({
-                            x: player.x,
-                            y: player.y,
-                            endX: player.x + Math.cos(angle) * player.stats.leashWhipRange,
-                            endY: player.y + Math.sin(angle) * player.stats.leashWhipRange,
-                            damage: player.stats.leashWhipDamage,
-                            timer: 0,
-                            duration: 0.2, // Visual duration of the whip
-                            hitEnemies: new Set(), // To track enemies hit by this specific whip instance
-                        });
-
-                        // Damage enemies within the whip range
-                        enemies.forEach(enemy => {
-                            const distanceToEnemy = dist(player, enemy);
-                            if (distanceToEnemy <= player.stats.leashWhipRange + enemy.size / 2) {
-                                // Simple check for now, can be refined with cone collision
-                                applyDamage(enemy, player.stats.leashWhipDamage);
-                            }
-                        });
-                    }
-                    player.leashWhipTimer = 0;
-                }
-            }
         }
 
         function updateEnemies(effectiveDt) {
@@ -2111,7 +2174,7 @@
                 const nearestEnemy = findNearestEnemy(dog);
                 if (nearestEnemy) {
                     const dx = nearestEnemy.x - dog.x;
-                    const dy = nearestEnemy.y - nearestEnemy.y; // Should be dog.y
+                    const dy = nearestEnemy.y - dog.y;
                     const distance = dist(dog, nearestEnemy);
                     if (distance > 50) {
                         const angle = Math.atan2(dy, dx);
@@ -2259,10 +2322,31 @@
         }
         
         function updateLeashWhips(effectiveDt) {
-            leashWhips = leashWhips.filter(whip => {
-                whip.timer += effectiveDt;
-                return whip.timer < whip.duration;
-            });
+            if (player.leashWhips && player.leashWhips.length > 0) {
+                player.leashWhips = player.leashWhips.filter(whip => {
+                    whip.alpha -= effectiveDt * 2;
+                    if (whip.alpha <= 0) return false;
+                    
+                    enemies.forEach(enemy => {
+                        if (!whip.hitEnemies.has(enemy) && isLineIntersectingCircle(whip.x1, whip.y1, whip.x2, whip.y2, enemy.x, enemy.y, enemy.size / 2)) {
+                             applyDamage(enemy, player.stats.leashWhipDamage);
+                             whip.hitEnemies.add(enemy);
+                             ultimateCharge = Math.min(ultimateMaxCharge, ultimateCharge + ultimateChargePerHit);
+                        }
+                    });
+                    return true;
+                });
+            }
+        }
+
+        function isLineIntersectingCircle(x1, y1, x2, y2, cx, cy, r) {
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            let a = dx * dx + dy * dy;
+            let b = 2 * (dx * (x1 - cx) + dy * (y1 - cy));
+            let c = (x1 - cx) * (x1 - cx) + (y1 - cy) * (y1 - cy) - r * r;
+            let discriminant = b * b - 4 * a * c;
+            return discriminant >= 0;
         }
 
         function updateKnifeThrows(effectiveDt) {
@@ -2354,7 +2438,6 @@
             boomerangs.forEach(drawBoomerang);
             drawSpinningKnives();
             drawForcefield();
-            leashWhips.forEach(drawLeashWhip); // Draw active leash whip effects
             
             drawPlayer();
             drawPlayerHealthBar();
@@ -2464,53 +2547,13 @@
             muteMusicButton.textContent = isMusicMuted ? 'Unmute Music' : 'Mute Music';
         }
         
-        // Local Storage Functions for High Scores
-        function saveHighScoresToLocalStorage(scores) {
-            localStorage.setItem('highScores', JSON.stringify(scores));
-        }
-
-        function loadHighScoresFromLocalStorage() {
-            const highScores = localStorage.getItem('highScores');
-            return highScores ? JSON.parse(highScores) : [];
-        }
-
-        // Local Storage Functions for Level Progress
-        function saveUserLevelScoreLocal(levelId, score) {
-            let currentBest = loadUserLevelScoreLocal(levelId);
-            if (score > currentBest) {
-                localStorage.setItem(`highestScore_${levelId}`, score);
-                // Update global variables
-                if (levelId === 'hotel_lobby') highestHotelLobbyScore = score;
-                if (levelId === 'the_park') highestTheParkScore = score;
-                if (levelId === 'desert_oasis') highestDesertOasisScore = score;
-            }
-        }
-
-        function loadUserLevelScoreLocal(levelId) {
-            const score = localStorage.getItem(`highestScore_${levelId}`);
-            return score ? parseInt(score, 10) : 0;
-        }
-
         async function saveAndDisplayHighScore() {
             const playerName = playerNameInput.value.trim();
             if (playerName) {
                 console.log(`[High Score Modal] Player name entered: "${playerName}"`);
-                
-                let highScores = loadHighScoresFromLocalStorage();
-                highScores.push({
-                    name: playerName,
-                    score: score,
-                    survivalTime: survivalTime.toFixed(1),
-                    level: player.level,
-                    levelId: currentLevelId,
-                    timestamp: Date.now()
-                });
-
-                // Sort and keep only top 10
-                highScores.sort((a, b) => b.score - a.score);
-                highScores = highScores.slice(0, 10);
-                saveHighScoresToLocalStorage(highScores);
-
+                if (window.saveHighScoreFirebase) {
+                    await window.saveHighScoreFirebase(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
+                }
                 highScoreModal.style.display = 'none';
                 displayHighScores('high-scores-list'); // Display high scores on game over menu
             } else {
@@ -2518,8 +2561,8 @@
             }
         }
 
-        function displayHighScores(targetElementId) {
-            const highScores = loadHighScoresFromLocalStorage();
+        async function displayHighScores(targetElementId) {
+            const highScores = await window.getHighScoresFirebase();
             const targetList = document.getElementById(targetElementId);
             if (!targetList) {
                 console.error(`Target element with ID ${targetElementId} not found.`);
@@ -2547,7 +2590,9 @@
         function showStartMenu() {
             hideAllMenus();
             startMenu.style.display = 'block';
-            displayHighScores('start-menu-high-scores-list');
+            if (window.displayHighScores) {
+                window.displayHighScores('start-menu-high-scores-list');
+            }
         }
 
         function showLevelSelectMenu() {
@@ -2566,9 +2611,7 @@
                 card.innerHTML = `<h3>${level.name}</h3><p>${level.description}</p>`;
                 let isLocked = false;
                 
-                // Check unlock conditions using local scores
-                let currentLevelBestScore = loadUserLevelScoreLocal(level.id);
-
+                // Check unlock conditions
                 if (level.id === 'the_park' && level.unlockScore > 0 && highestHotelLobbyScore < level.unlockScore) {
                     isLocked = true;
                     card.classList.add('locked');
@@ -2674,8 +2717,7 @@
                 forcefieldActive: false,
                 forcefieldDamage: 0,
                 forcefieldRadius: 0,
-                leashWhipDamage: 15, // Base damage for leash whip
-                leashWhipRange: 75, // Base range for leash whip
+                leashWhipDamage: 0,
                 knifeDamage: 0,
                 knifeCount: 0,
                 knifeCooldown: 1.5,
@@ -2711,7 +2753,6 @@
             allyDogs = []; // Ensure dogs are cleared on full game reset
             drones = [];
             boomerangs = [];
-            leashWhips = []; // Reset leash whips on game start
             levelUpQueue = [];
             survivalTime = 0;
             shootTimer = 0;
@@ -2733,7 +2774,9 @@
             player.stats.forcefieldRadius = 0;
             player.forcefieldTimer = 0;
             player.forcefieldHitEnemies = new Set();
-            player.leashWhipTimer = 0; // Reset leash whip timer
+            player.stats.leashWhipDamage = 0;
+            player.leashWhipCooldown = 0;
+            player.leashWhipTimer = 0;
             dogProjectileDamage = 0;
             dogProjectileSpeed = 0;
             // Reset new stats/upgrades
@@ -2747,6 +2790,7 @@
             player.upgrades.swordThrow = 0;
             player.knifeThrowTimer = 0;
             player.swordThrowTimer = 0;
+            player.shotgunRange = 250;
             
             // Reset player invincibility state
             player.invincible = false;
@@ -2809,7 +2853,6 @@
             drones = [];
             boomerangs = [];
             spinningKnives = [];
-            leashWhips = []; // Reset leash whips
             levelUpQueue = [];
             damageNumbers = [];
             particles = [];
@@ -2832,10 +2875,10 @@
                 damage: 20, attackSpeed: 10, projectileSpeed: 400, pierce: 0, multiShot: 1, healthRegen: 0.1,
                 magnet: 120, damageReduction: 0, spinningKnivesDamage: 0, spinningKnivesCount: 0, burstDamage: 0,
                 burstProjectileCount: 0, droneCount: 0, droneDamage: 0, droneAttackSpeed: 0, shotgunPellets: 0, shotgunDamage: 0,
-                shotgunSpread: 0, shotgunRange: 200 * 1.25, dualUziActive: false, dualUziFireRate: 0, dualUziDamage: 0,
+                shotgunSpread: 0, shotgunRange: 250, dualUziActive: false, dualUziFireRate: 0, dualUziDamage: 0,
                 boomerangDamage: 0, boomerangCount: 0, boomerangCooldown: 4, boomerangRange: 150, boomerangSpeed: 400,
                 burstChargeDamage: 0, burstChargeProjectileCount: 0, forcefieldActive: false, forcefieldDamage: 0,
-                forcefieldRadius: 0, leashWhipDamage: 15, leashWhipRange: 75, knifeDamage: 0, knifeCount: 0, knifeCooldown: 1.5,
+                forcefieldRadius: 0, leashWhipDamage: 0, knifeDamage: 0, knifeCount: 0, knifeCooldown: 1.5,
                 swordDamage: 0, swordPierce: 0, swordCooldown: 3,
             };
             player.upgrades = {
@@ -2946,4 +2989,3 @@
     </script>
 </body>
 </html>
-�
