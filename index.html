@@ -734,6 +734,9 @@
                 swordDamage: 0, // New: Sword damage
                 swordPierce: 0, // New: Sword pierce
                 swordCooldown: 3, // New: Cooldown for sword throw
+                acidAuraDamage: 0, // New: Acid Aura damage
+                acidAuraInterval: 0, // New: Acid Aura interval
+                acidAuraRadius: 0, // New: Acid Aura radius
             },
             upgrades: {
                 damage: 0,
@@ -761,6 +764,7 @@
                 dogSpeed: 0,             
                 knifeThrow: 0, // New: Knife Throw upgrade level
                 swordThrow: 0, // New: Sword Throw upgrade level
+                acidAura: 0, // New: Acid Aura upgrade level
             },
             burstChargeCooldown: 5, 
             burstChargeTimer: 0, 
@@ -779,8 +783,15 @@
             forcefieldTimer: 0,      
             forcefieldHitEnemies: new Set(), 
             leashWhipTimer: 0,       
+            leashWhipActive: false, // New: Leash whip visual active state
+            leashWhipAnimationTimer: 0, // New: Leash whip animation timer
+            leashWhipTargetX: 0, // New: Leash whip target X for drawing
+            leashWhipTargetY: 0, // New: Leash whip target Y for drawing
             knifeThrowTimer: 0, // New: Timer for knife throw cooldown
             swordThrowTimer: 0, // New: Timer for sword throw cooldown
+            acidAuraTimer: 0, // New: Timer for Acid Aura pulse
+            acidAuraAngle: 0, // New: Angle for Acid Aura rotation
+            acidAuraHitEnemies: new Set(), // New: To track enemies hit by current acid pulse
             invincible: false, // New: Player invincibility state
             invincibilityTimer: 0, // New: Duration of invincibility
             flashTimer: 0, // New: Timer for player flash effect
@@ -818,8 +829,9 @@
         const lvl = player.upgrades.acidAura = (player.upgrades.acidAura || 0) + 1;
         player.stats.acidAuraDamage = 20 + lvl * 10;
         player.stats.acidAuraInterval = Math.max(0.4, 1 - lvl * 0.1);
+        player.stats.acidAuraRadius = 50 + lvl * 15; // Define radius for visual and collision
     },
-    next: () => `Boost acid pulse damage to ${20 + ((player.upgrades.acidAura || 0) + 1) * 10}. Interval: ${(Math.max(0.4, 1 - ((player.upgrades.acidAura || 0) + 1) * 0.1)).toFixed(1)}s.`,
+    next: () => `Boost acid pulse damage to ${20 + ((player.upgrades.acidAura || 0) + 1) * 10}. Radius: ${50 + ((player.upgrades.acidAura || 0) + 1) * 15}. Interval: ${(Math.max(0.4, 1 - ((player.upgrades.acidAura || 0) + 1) * 0.1)).toFixed(1)}s.`,
     characters: ['johnny', 'dixie']
 },
 
@@ -942,7 +954,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 player.shotgunTimer = 0; 
               },
               next: () => `Fires ${5 + (player.upgrades.shotgun + 1) * 2} pellets with a short range. (Lvl ${player.upgrades.shotgun + 1}/${MAX_UPGRADE_LEVEL})`, 
-              characters: ['johnny'] 
+              characters: ['johnny', 'dixie'] // Added Dixie here
             },
             { id: 'dualUzi', name: 'Dual Uzis', description: 'Fires two continuous streams of bullets.',
               level: () => player.upgrades.dualUzi,
@@ -954,7 +966,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 player.dualUziTimer = 0; 
               },
               next: () => `Fires two streams at ${10 + (player.upgrades.dualUzi + 1) * 5} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
-              characters: ['johnny', 'dixie'] // Added Dixie back here
+              characters: ['johnny', 'dixie'] 
             },
             { id: 'boomerang', name: 'Boomerang', description: 'Launches a spinning boomerang that hits enemies and returns.',
               level: () => player.upgrades.boomerang,
@@ -1328,6 +1340,14 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (player.stats.forcefieldActive) {
                 drawForcefield();
             }
+            // Draw Acid Aura
+            if (player.upgrades.acidAura > 0) {
+                drawAcidAura();
+            }
+            // Draw Leash Whip
+            if (player.leashWhipActive) {
+                drawLeashWhip();
+            }
             drawDamageNumbers();
             drawParticles(); 
             if (screenFlash.active) {
@@ -1353,7 +1373,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             } else if (currentLevelId === 'the_park') {
                 bgColor = '#225522'; // Green for park
                 gridColor = '#336633';
-            } else if (currentLevelId === 'desert_oasis') { // New desert theme
+            } else if (currentLevelId === 'desert_oasis') { // New desert theme -> Casablanca
                 bgColor = '#C2B280'; // Sandy beige
                 gridColor = '#B09F6E'; // Slightly darker sand for grid
             } else {
@@ -1967,6 +1987,73 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             ctx.fill();
         }
 
+        // New: Draw Acid Aura effect
+        function drawAcidAura() {
+            const screenX = player.x - camera.x;
+            const screenY = player.y - camera.y;
+            const currentRadius = player.stats.acidAuraRadius * (1 + 0.1 * Math.sin(player.acidAuraTimer * 10)); // Pulsating effect
+            const rotationSpeed = 2; // radians per second
+            const startAngle = player.acidAuraAngle;
+            const endAngle = player.acidAuraAngle + Math.PI; // Semi-circle for visual
+            
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, currentRadius, startAngle, endAngle);
+            ctx.lineTo(screenX, screenY); // Close the semi-circle to form a "pac-man" shape
+            ctx.closePath();
+            ctx.fillStyle = `rgba(0, 255, 0, ${0.3 + 0.2 * Math.sin(player.acidAuraTimer * 5)})`; // Green with pulsating alpha
+            ctx.fill();
+
+            // Draw a thin outer glow
+            ctx.strokeStyle = `rgba(0, 255, 0, ${0.6 + 0.2 * Math.sin(player.acidAuraTimer * 5)})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // New: Draw Leash Whip effect
+        function drawLeashWhip() {
+            const screenX = player.x - camera.x;
+            const screenY = player.y - camera.y;
+
+            // Determine whip length based on upgrade level
+            const baseWhipLength = 150; // Base length in pixels (approx 10 meters)
+            const whipLengthPerLevel = 20; // Additional length per level
+            const currentWhipLength = baseWhipLength + player.upgrades.leashWhip * whipLengthPerLevel;
+
+            // Target direction for the whip
+            let whipAngle = player.currentShootAngle; // Default to player's shoot angle
+            const closestEnemy = findClosestEnemy();
+            if (closestEnemy) {
+                // Point whip towards the closest enemy
+                whipAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+            }
+
+            const endX = screenX + Math.cos(whipAngle) * currentWhipLength;
+            const endY = screenY + Math.sin(whipAngle) * currentWhipLength;
+
+            // Animate the whip appearance/disappearance
+            const opacity = player.leashWhipAnimationTimer / 0.2; // Fade out over 0.2 seconds
+            const lineWidth = 5 + player.upgrades.leashWhip; // Thicker whip with levels
+
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            // Add a slight curve to the whip for visual appeal
+            const midX = screenX + Math.cos(whipAngle + Math.PI/4) * currentWhipLength / 2;
+            const midY = screenY + Math.sin(whipAngle + Math.PI/4) * currentWhipLength / 2;
+            ctx.quadraticCurveTo(midX, midY, endX, endY);
+            
+            ctx.strokeStyle = `rgba(139, 69, 19, ${opacity})`; // Brownish color for the whip
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = 'round'; // Rounded ends for the whip
+            ctx.stroke();
+
+            // Add a small glowing tip at the end of the whip
+            ctx.beginPath();
+            ctx.arc(endX, endY, lineWidth * 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 223, 0, ${opacity})`; // Gold/yellow glow
+            ctx.fill();
+        }
+
+
         function drawUI() {
             scoreDisplay.textContent = `Score: ${score}`;
             const minutes = Math.floor(survivalTime / 60);
@@ -2159,11 +2246,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             // --- FIX: Load latest scores every time the menu is opened ---
             const highestHotelLobbyScore = window.loadUserLevelScoreLocally('hotel_lobby');
             const highestTheParkScore = window.loadUserLevelScoreLocally('the_park');
+            // Ensure scores for Casablanca are also considered for unlocks.
+            const highestCasablancaScore = window.loadUserLevelScoreLocally('desert_oasis');
 
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
                 { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' },
-                { id: 'desert_oasis', name: 'Desert Oasis', unlockScore: 5000, description: 'A scorching landscape with hidden dangers.' } 
+                { id: 'desert_oasis', name: 'Casablanca', unlockScore: 5000, description: 'A scorching landscape with hidden dangers.' } 
             ];
 
             levels.forEach(level => {
@@ -2173,9 +2262,9 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
                 let isLocked = false;
                 
-                // Unlock logic for Desert Oasis
+                // Unlock logic for Casablanca (formerly Desert Oasis)
                 if (level.id === 'desert_oasis' && level.unlockScore > 0) {
-                    const maxScore = Math.max(highestHotelLobbyScore, highestTheParkScore);
+                    const maxScore = Math.max(highestHotelLobbyScore, highestTheParkScore, highestCasablancaScore); // Include Casablanca in max score check
                     if (maxScore < level.unlockScore) {
                         isLocked = true;
                         card.classList.add('locked');
@@ -2476,10 +2565,19 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) {
                 player.leashWhipTimer += effectiveDt;
                 if (player.leashWhipTimer >= player.leashWhipCooldown) {
+                    // Determine where the whip effect should extend to
+                    let targetX = player.x + Math.cos(player.currentShootAngle) * (150 + player.upgrades.leashWhip * 20); // Base 150px + 20px per level
+                    let targetY = player.y + Math.sin(player.currentShootAngle) * (150 + player.upgrades.leashWhip * 20);
+
                     const enemiesInWhipRange = enemies.filter(enemy => 
-                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 50 + enemy.size / 2) 
+                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 100 + (player.upgrades.leashWhip * 10) + enemy.size / 2) // Range increases with level
                     );
                     if (enemiesInWhipRange.length > 0) {
+                        // If there are enemies in range, snap whip to closest one
+                        const closestEnemy = enemiesInWhipRange.sort((a,b) => dist(player,a) - dist(player,b))[0];
+                        player.leashWhipTargetX = closestEnemy.x;
+                        player.leashWhipTargetY = closestEnemy.y;
+                        
                         enemiesInWhipRange.forEach(enemy => {
                             const damageDealt = player.stats.leashWhipDamage;
                             enemy.health -= damageDealt;
@@ -2492,7 +2590,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                             spawnParticles(enemy.x, enemy.y, {r: 150, g: 75, b: 0}); 
                         });
                         playSound('playerShot'); 
+                    } else {
+                        // If no enemies in range, whip in current shoot direction
+                        player.leashWhipTargetX = targetX;
+                        player.leashWhipTargetY = targetY;
                     }
+                    player.leashWhipActive = true; // Activate visual
+                    player.leashWhipAnimationTimer = 0.2; // Set animation duration
                     player.leashWhipTimer = 0;
                 }
             }
@@ -2548,6 +2652,32 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         playSound('playerShot');
                         player.swordThrowTimer = 0;
                     }
+                }
+            }
+
+            // Acid Aura Logic
+            if (player.upgrades.acidAura > 0) {
+                player.acidAuraTimer += effectiveDt;
+                player.acidAuraAngle = (player.acidAuraAngle + effectiveDt * 2) % (Math.PI * 2); // Rotate aura
+                if (player.acidAuraTimer >= player.stats.acidAuraInterval) {
+                    enemies.forEach(enemy => {
+                        if (!enemy.controlled && dist(player, enemy) < player.stats.acidAuraRadius + enemy.size / 2) {
+                            if (!player.acidAuraHitEnemies.has(enemy)) { // Ensure enemy is only hit once per pulse
+                                const damageDealt = player.stats.acidAuraDamage;
+                                enemy.health -= damageDealt;
+                                ultimateCharge += ultimateChargePerHit;
+                                showDamageNumber(damageDealt, enemy.x, enemy.y);
+                                if (survivalTime - lastEnemyHitSoundTime >= enemyHitSoundCooldown) {
+                                    playSound('enemyHit');
+                                    lastEnemyHitSoundTime = survivalTime;
+                                }
+                                spawnParticles(enemy.x, enemy.y, {r: 0, g: 255, b: 0}); // Green particles for acid
+                                player.acidAuraHitEnemies.add(enemy);
+                            }
+                        }
+                    });
+                    player.acidAuraTimer = 0;
+                    player.acidAuraHitEnemies.clear(); // Clear hit enemies for the next pulse
                 }
             }
         }
@@ -3938,6 +4068,10 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.stats.leashWhipDamage = 0; 
             player.leashWhipCooldown = 0;    
             player.leashWhipTimer = 0;       
+            player.leashWhipActive = false; // Reset leash whip visual state
+            player.leashWhipAnimationTimer = 0; // Reset leash whip animation timer
+            player.leashWhipTargetX = 0; // Reset leash whip target
+            player.leashWhipTargetY = 0; // Reset leash whip target
 
             dogProjectileDamage = 0; 
             dogProjectileSpeed = 0;  
@@ -3949,12 +4083,21 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.stats.swordDamage = 0;
             player.stats.swordPierce = 0;
             player.stats.swordCooldown = 3;
+            player.stats.acidAuraDamage = 0; // Reset Acid Aura damage
+            player.stats.acidAuraInterval = 0; // Reset Acid Aura interval
+            player.stats.acidAuraRadius = 0; // Reset Acid Aura radius
+
 
             player.upgrades.knifeThrow = 0;
             player.upgrades.swordThrow = 0;
+            player.upgrades.acidAura = 0; // Reset Acid Aura upgrade level
+
 
             player.knifeThrowTimer = 0;
             player.swordThrowTimer = 0;
+            player.acidAuraTimer = 0; // Reset Acid Aura timer
+            player.acidAuraAngle = 0; // Reset Acid Aura angle
+            player.acidAuraHitEnemies.clear(); // Clear Acid Aura hit enemies
 
             // Reset player invincibility state
             player.invincible = false;
@@ -4070,11 +4213,21 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) { 
                 player.leashWhipTimer += effectiveDt;
             }
+            if (player.leashWhipActive) { // Update leash whip animation timer
+                player.leashWhipAnimationTimer -= effectiveDt;
+                if (player.leashWhipAnimationTimer <= 0) {
+                    player.leashWhipActive = false;
+                }
+            }
             if (player.upgrades.knifeThrow > 0) { // New: Update knife throw timer
                 player.knifeThrowTimer += effectiveDt;
             }
             if (player.upgrades.swordThrow > 0) { // New: Update sword throw timer
                 player.swordThrowTimer += effectiveDt;
+            }
+            if (player.upgrades.acidAura > 0) { // New: Update Acid Aura timer
+                player.acidAuraTimer += effectiveDt;
+                player.acidAuraAngle = (player.acidAuraAngle + effectiveDt * 2) % (Math.PI * 2); // Rotate aura
             }
 
 
@@ -4151,6 +4304,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 bassSequence.stop(Tone.now()); 
             }
             Tone.Transport.stop(Tone.now()); 
+            player.color = player.baseColor; // Restore player color on game over
 
             // Save user's personal best score for the current level
             if (window.saveUserLevelScoreLocally) {
@@ -4207,9 +4361,10 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
             highScores.forEach((s, index) => {
                 const li = document.createElement('li');
+                const levelName = s.levelId === 'hotel_lobby' ? 'Hotel' : (s.levelId === 'the_park' ? 'Park' : 'Casablanca'); // Updated level name
                 li.innerHTML = `
                     <span>${index + 1}. ${s.name}</span>
-                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${s.levelId === 'hotel_lobby' ? 'Hotel' : (s.levelId === 'the_park' ? 'Park' : 'Desert')})</span>
+                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${levelName})</span>
                 `;
                 targetList.appendChild(li);
                 console.log(`[Display High Scores for ${targetElementId}] Displaying score: ${s.name}, ${s.score}`);
@@ -4447,7 +4602,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: 100, height: 30, color: '#8B4513', type: 'bench' 
                     });
                 }
-            } else if (currentLevelId === 'desert_oasis') { // New desert obstacles
+            } else if (currentLevelId === 'desert_oasis') { // New desert obstacles -> Casablanca
                 // Cactuses (circular)
                 for (let i = 0; i < 20; i++) {
                     const x = Math.random() * gameWorld.width;
@@ -4505,6 +4660,9 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 swordDamage: 0, // New: Sword damage
                 swordPierce: 0, // New: Sword pierce
                 swordCooldown: 3, // New: Cooldown for sword throw
+                acidAuraDamage: 0, // New: Acid Aura damage
+                acidAuraInterval: 0, // New: Acid Aura interval
+                acidAuraRadius: 0, // New: Acid Aura radius
             };
             player.upgrades = {
                 damage: 0, attackSpeed: 0, health: 0, speed: 0, pierce: 0, multiShot: 0, 
@@ -4521,6 +4679,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 dogSpeed: 0,      
                 knifeThrow: 0, // New: Knife Throw upgrade level
                 swordThrow: 0, // New: Sword Throw upgrade level
+                acidAura: 0, // New: Acid Aura upgrade level
             };
             player.burstChargeCooldown = 5; 
             player.burstChargeTimer = 0; 
@@ -4537,8 +4696,16 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.forcefieldTimer = 0; 
             player.forcefieldHitEnemies.clear(); 
             player.leashWhipTimer = 0; 
+            player.leashWhipActive = false; // Reset leash whip visual state
+            player.leashWhipAnimationTimer = 0; // Reset leash whip animation timer
+            player.leashWhipTargetX = 0; // Reset leash whip target
+            player.leashWhipTargetY = 0; // Reset leash whip target
             player.knifeThrowTimer = 0; // New: Reset knife throw timer
             player.swordThrowTimer = 0; // New: Reset sword throw timer
+            player.acidAuraTimer = 0; // Reset Acid Aura timer
+            player.acidAuraAngle = 0; // Reset Acid Aura angle
+            player.acidAuraHitEnemies.clear(); // Clear Acid Aura hit enemies
+
 
             dogProjectileDamage = 0; 
             dogProjectileSpeed = 0;  
