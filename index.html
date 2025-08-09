@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -452,18 +451,15 @@
 <div id="gameContainer">
 <canvas id="gameCanvas"></canvas>
 <div id="ui">
-<!-- Top Left Controls: Score and Pause Button -->
 <div id="top-left-controls">
 <div class="hud-item" id="score-display">Score: 0</div>
 <button class="control-button" id="pauseButton">Pause</button>
 </div>
-<!-- Bottom Left Controls: Time, Menu, and Level -->
 <div id="bottom-left-controls">
 <div class="hud-item" id="time-display">Time: 0s</div>
 <button class="control-button" id="menuButton">Menu</button>
 <div class="hud-item" id="level-display">Level: 1</div>
 </div>
-<!-- Mini-map container -->
 <div id="miniMapContainer">
 <canvas id="miniMapCanvas"></canvas>
 </div>
@@ -479,7 +475,6 @@
 <button id="levelSelectButton">Level Select</button>
 <h3>Global High Scores</h3>
 <ul id="start-menu-high-scores-list">
-<!-- High scores will be loaded here -->
 </ul>
 </div>
 <div class="menu" id="game-over-menu" style="display: none;">
@@ -489,17 +484,14 @@
 <h2 id="final-level">Level Reached: 1</h2>
 <h3>High Scores</h3>
 <ul id="high-scores-list">
-<!-- High scores will be loaded here -->
 </ul>
 <button id="restartButton">Restart Game</button>
-<button id="backToMainMenuButtonGameOver">Return to Main Menu</button> <!-- New button -->
-</div>
+<button id="backToMainMenuButtonGameOver">Return to Main Menu</button> </div>
 <div class="menu" id="message-box" style="display: none;">
 <h3 id="message-title">Level Up!</h3>
 <p id="message-text">Choose your power-up:</p>
 <div id="power-selection"></div>
 </div>
-<!-- Game Menu -->
 <div class="menu" id="game-menu" style="display: none;">
 <h1>Game Menu</h1>
 <button class="control-button" id="muteMusicButton">Mute Music</button>
@@ -512,15 +504,12 @@
 <input id="playerNameInput" maxlength="15" placeholder="Your Name" type="text"/>
 <button id="saveScoreButton">Save Score</button>
 </div>
-<!-- Level Select Menu -->
 <div class="menu" id="level-select-menu" style="display: none;">
 <h1>Select Level</h1>
 <div id="level-options">
-<!-- Levels will be dynamically loaded here -->
 </div>
 <button id="backToMainMenuButton">Back</button>
 </div>
-<!-- Character Select Menu -->
 <div class="menu" id="character-select-menu" style="display: none;">
 <h1>Select Your Survivor</h1>
 <div id="character-options" style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 20px;">
@@ -539,166 +528,70 @@
 </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
-<!-- Firebase SDKs -->
-<script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+<script>
+    // --- Local Storage High Score System ---
 
-        // Global Firebase variables (will be initialized in init function)
-        window.fb = {};
+    // Saves a high score to local storage.
+    window.saveHighScoreLocally = function(name, score, time, level, levelId) {
+        try {
+            const highScores = JSON.parse(localStorage.getItem('jws_highScores') || '[]');
+            const newScore = {
+                name: name,
+                score: score,
+                survivalTime: time,
+                level: level,
+                levelId: levelId,
+                timestamp: Date.now()
+            };
+            highScores.push(newScore);
+            highScores.sort((a, b) => b.score - a.score); // Sort descending
+            const topScores = highScores.slice(0, 10); // Keep only top 10
+            localStorage.setItem('jws_highScores', JSON.stringify(topScores));
+            console.log("High score saved locally!");
+        } catch (e) {
+            console.error("Error saving high score locally: ", e);
+        }
+    };
 
-        window.initFirebase = async function() {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    // Retrieves high scores from local storage.
+    window.getHighScoresLocally = function() {
+        try {
+            const highScores = JSON.parse(localStorage.getItem('jws_highScores') || '[]');
+            console.log("[Local Get] Fetched high score data:", highScores);
+            return highScores;
+        } catch (e) {
+            console.error("Error getting documents from local storage: ", e);
+            return [];
+        }
+    };
 
-            if (Object.keys(firebaseConfig).length === 0) {
-                console.error("Firebase config is missing. High score system will not function.");
-                return;
+    // Saves the user's best score for a specific level.
+    window.saveUserLevelScoreLocally = function(levelId, score) {
+        try {
+            const levelScores = JSON.parse(localStorage.getItem('jws_levelScores') || '{}');
+            const currentBestScore = levelScores[levelId] || 0;
+
+            if (score > currentBestScore) {
+                levelScores[levelId] = score;
+                localStorage.setItem('jws_levelScores', JSON.stringify(levelScores));
+                console.log(`User's highest score for ${levelId} updated locally to ${score}.`);
             }
+        } catch (e) {
+            console.error(`Error saving user level score locally for ${levelId}: `, e);
+        }
+    };
 
-            const app = initializeApp(firebaseConfig);
-            window.fb.db = getFirestore(app);
-            window.fb.auth = getAuth(app);
-            window.fb.appId = appId; // Store appId for later use
-
-            // Sign in anonymously if no custom token is provided
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                try {
-                    await signInWithCustomToken(window.fb.auth, __initial_auth_token);
-                    console.log("Signed in with custom token.");
-                } catch (error) {
-                    console.error("Error signing in with custom token:", error);
-                    await signInAnonymously(window.fb.auth);
-                    console.log("Signed in anonymously instead.");
-                }
-            } else {
-                await signInAnonymously(window.fb.auth);
-                console.log("Signed in anonymously.");
-            }
-
-            // Listen for auth state changes to ensure user is ready
-            onAuthStateChanged(window.fb.auth, (user) => {
-                if (user) {
-                    window.fb.userId = user.uid;
-                    console.log("Firebase user ready:", window.fb.userId);
-                    // Load user's level scores once authenticated
-                    window.loadUserLevelScore('hotel_lobby').then(score => {
-                        window.highestHotelLobbyScore = score;
-                        console.log("Loaded highest Hotel Lobby score:", window.highestHotelLobbyScore);
-                    });
-                    // Load 'the_park' score
-                    window.loadUserLevelScore('the_park').then(score => {
-                        window.highestTheParkScore = score;
-                        console.log("Loaded highest The Park score:", window.highestTheParkScore);
-                    });
-                    // Display high scores on start menu after Firebase is initialized
-                    window.displayHighScores('start-menu-high-scores-list');
-                } else {
-                    console.log("Firebase user not signed in.");
-                    window.fb.userId = null; // Ensure userId is null if not authenticated
-                }
-            });
-        };
-
-        window.saveHighScoreFirebase = async function(name, score, time, level, levelId) {
-            if (!window.fb.db || !window.fb.userId) {
-                console.error("Firestore not initialized or user not authenticated.");
-                return;
-            }
-
-            const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
-            try {
-                console.log(`[Firebase Save] Attempting to save score for name: ${name}, score: ${score}, levelId: ${levelId}`); // Added levelId
-                await addDoc(highScoresCollection, {
-                    name: name,
-                    score: score,
-                    survivalTime: time,
-                    level: level,
-                    levelId: levelId, // Save the level ID
-                    timestamp: Date.now(),
-                    userId: window.fb.userId
-                });
-                console.log("High score saved successfully to public high scores!");
-            } catch (e) {
-                console.error("Error adding document to public high scores: ", e);
-            }
-        };
-
-        window.getHighScoresFirebase = async function() {
-            if (!window.fb.db) {
-                console.error("Firestore not initialized.");
-                return [];
-            }
-
-            const highScoresCollection = collection(window.fb.db, `artifacts/${window.fb.appId}/public/data/highScores`);
-            const q = query(highScoresCollection, orderBy("score", "desc"), limit(10));
-            
-            try {
-                const querySnapshot = await getDocs(q);
-                const highScores = [];
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    console.log("[Firebase Get] Fetched high score data:", data);
-                    highScores.push(data);
-                });
-                highScores.sort((a, b) => b.score - a.score); // Client-side sort just in case
-                return highScores;
-            } catch (e) {
-                console.error("Error getting documents from public high scores: ", e);
-                return [];
-            }
-        };
-
-        window.saveUserLevelScore = async function(levelId, score) {
-            if (!window.fb.db || !window.fb.userId) {
-                console.error("Firestore not initialized or user not authenticated for private data.");
-                return;
-            }
-
-            const userLevelScoreRef = doc(window.fb.db, `artifacts/${window.fb.appId}/users/${window.fb.userId}/levelScores`, levelId);
-            try {
-                const docSnap = await getDoc(userLevelScoreRef);
-                let currentBestScore = 0;
-                if (docSnap.exists()) {
-                    currentBestScore = docSnap.data().highestScore || 0;
-                }
-
-                if (score > currentBestScore) {
-                    await setDoc(userLevelScoreRef, { highestScore: score, timestamp: Date.now() });
-                    console.log(`User's highest score for ${levelId} updated to ${score}.`);
-                    // Update the global variable if it's for hotel lobby
-                    if (levelId === 'hotel_lobby') {
-                        window.highestHotelLobbyScore = score;
-                    } else if (levelId === 'the_park') { // Update for 'the_park'
-                        window.highestTheParkScore = score;
-                    }
-                } else {
-                    console.log(`Current score ${score} is not higher than existing best ${currentBestScore} for ${levelId}.`);
-                }
-            } catch (e) {
-                console.error(`Error saving user level score for ${levelId}: `, e);
-            }
-        };
-
-        window.loadUserLevelScore = async function(levelId) {
-            if (!window.fb.db || !window.fb.userId) {
-                console.warn("Firestore not initialized or user not authenticated for private data. Returning 0 for level score.");
-                return 0;
-            }
-
-            const userLevelScoreRef = doc(window.fb.db, `artifacts/${window.fb.appId}/users/${window.fb.userId}/levelScores`, levelId);
-            try {
-                const docSnap = await getDoc(userLevelScoreRef);
-                if (docSnap.exists()) {
-                    return docSnap.data().highestScore || 0;
-                }
-                return 0;
-            } catch (e) {
-                console.error(`Error loading user level score for ${levelId}: `, e);
-            }
-        };
-    </script>
+    // Loads the user's best score for a specific level.
+    window.loadUserLevelScoreLocally = function(levelId) {
+        try {
+            const levelScores = JSON.parse(localStorage.getItem('jws_levelScores') || '{}');
+            return levelScores[levelId] || 0;
+        } catch (e) {
+            console.error(`Error loading user level score locally for ${levelId}: `, e);
+            return 0;
+        }
+    };
+</script>
 <script>
         // Get canvas and UI elements from the DOM
         const canvas = document.getElementById('gameCanvas');
@@ -761,6 +654,7 @@
         let bulletTimeActive = false; 
         let bulletTimeDuration = 0; 
         let spinningKnives = []; 
+        let screenFlash = { active: false, duration: 0, alpha: 0 };
         
         let randomChestSpawnTimer = 0; 
         const RANDOM_CHEST_SPAWN_INTERVAL = 3; 
@@ -903,24 +797,7 @@
 
         // Level management
         let currentLevelId = 'hotel_lobby'; 
-        let highestHotelLobbyScore = 0; 
-        let highestTheParkScore = 0; // New: To track score for 'the_park'
         let currentCharacter = 'johnny';
-
-if (currentCharacter === 'dixie') {
-    player.level = 3;
-    player.upgrades.dualUzi = 1;
-    player.stats.dualUziActive = true;
-    player.stats.dualUziFireRate = 15;
-    player.stats.dualUziDamage = 6.5;
-    player.stats.shotgunPellets = 5;
-    player.stats.shotgunDamage = 15;
-    player.upgrades.shotgun = 1;
-    player.upgrades.combatDrone = 1;
-    player.stats.droneCount = 1;
-    player.stats.droneDamage = 15;
-}
-; 
 
         // Dog specific variables (for Dixie)
         let allyDogs = []; 
@@ -1453,10 +1330,18 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             }
             drawDamageNumbers();
             drawParticles(); 
+            if (screenFlash.active) {
+                drawScreenFlash();
+            }
 
             ctx.restore(); 
             drawUI();
             drawMiniMap(); 
+        }
+
+        function drawScreenFlash() {
+            ctx.fillStyle = `rgba(255, 255, 255, ${screenFlash.alpha})`;
+            ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom);
         }
         
         function drawBackground() {
@@ -2237,7 +2122,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             gameMenu.style.display = 'none'; 
             levelSelectMenu.style.display = 'none'; 
             characterSelectMenu.style.display = 'none'; 
-            // Removed: displayHighScores('start-menu-high-scores-list'); // This call is now handled by onAuthStateChanged in initFirebase
+            displayHighScores('start-menu-high-scores-list');
         }
         
         function showGameOverMenu() {
@@ -2271,10 +2156,14 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
         function populateLevelOptions() {
             levelOptionsDiv.innerHTML = ''; 
 
+            // --- FIX: Load latest scores every time the menu is opened ---
+            const highestHotelLobbyScore = window.loadUserLevelScoreLocally('hotel_lobby');
+            const highestTheParkScore = window.loadUserLevelScoreLocally('the_park');
+
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
                 { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' },
-                { id: 'desert_oasis', name: 'Desert Oasis', unlockScore: 5000, description: 'A scorching landscape with hidden dangers.' } // New level
+                { id: 'desert_oasis', name: 'Desert Oasis', unlockScore: 5000, description: 'A scorching landscape with hidden dangers.' } 
             ];
 
             levels.forEach(level => {
@@ -2283,21 +2172,20 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 card.innerHTML = `<h3>${level.name}</h3><p>${level.description}</p>`;
 
                 let isLocked = false;
-                if (level.id === 'the_park' && level.unlockScore > 0 && highestHotelLobbyScore < level.unlockScore) {
-                    isLocked = true;
-                    card.classList.add('locked');
-                    const unlockInfo = document.createElement('p');
-                    unlockInfo.className = 'unlock-info';
-                    unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Hotel Lobby (Your Best: ${highestHotelLobbyScore})`;
-                    card.appendChild(unlockInfo);
-                } else if (level.id === 'desert_oasis' && level.unlockScore > 0 && Math.max(highestHotelLobbyScore, highestTheParkScore) < level.unlockScore) { // Changed unlock condition for Desert Oasis
-                    isLocked = true;
-                    card.classList.add('locked');
-                    const unlockInfo = document.createElement('p');
-                    unlockInfo.className = 'unlock-info';
-                    unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Any Level (Your Best: ${Math.max(highestHotelLobbyScore, highestTheParkScore)})`; // Updated message
-                    card.appendChild(unlockInfo);
+                
+                // Unlock logic for Desert Oasis
+                if (level.id === 'desert_oasis' && level.unlockScore > 0) {
+                    const maxScore = Math.max(highestHotelLobbyScore, highestTheParkScore);
+                    if (maxScore < level.unlockScore) {
+                        isLocked = true;
+                        card.classList.add('locked');
+                        const unlockInfo = document.createElement('p');
+                        unlockInfo.className = 'unlock-info';
+                        unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Any Level (Your Best: ${maxScore})`;
+                        card.appendChild(unlockInfo);
+                    }
                 }
+
 
                 if (!isLocked) {
                     card.addEventListener('click', () => {
@@ -2425,12 +2313,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     let currentMultiShot = player.stats.multiShot;
                     let currentProjectileSpeed = player.stats.projectileSpeed;
                     let currentDamage = player.stats.damage;
-
-                    if (temporaryPowerupType === 'spreadGun') {
-                        currentMultiShot = 5; 
-                        currentProjectileSpeed = 300; 
-                        currentDamage = player.stats.damage * 0.75; 
-                    }
 
                     for (let i = 0; i < currentMultiShot; i++) {
                         const spread = (i - (currentMultiShot - 1) / 2) * 0.1; 
@@ -3560,7 +3442,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             for (let i = chests.length - 1; i >= 0; i--) {
                 const chest = chests[i];
                 if (dist(player, chest) < (player.size / 2 + chest.size / 2)) {
-                    activateTemporaryPowerup();
+                    activateChestPowerup();
                     chests.splice(i, 1);
                 }
             }
@@ -3891,42 +3773,57 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             });
         }
 
-        function activateTemporaryPowerup() {
-            // This function is now only for Johnny's temporary powerups
-            if (currentCharacter === 'dixie') return; 
+        // --- NEW: Chest Powerup Functions ---
 
-            const powerupChoices = ['spreadGun']; 
+        function activateChestPowerup() {
+            const powerupChoices = ['nuke', 'xpSuck', 'levelUp'];
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
-
-            temporaryPowerupType = chosenPowerup;
-
-            if (survivalTime >= 300 && survivalTime < 900) { 
-                temporaryPowerupDuration = 10;
-            } else { 
-                temporaryPowerupDuration = 5;
-            }
             
-            temporaryPowerupActive = true; 
+            playSound('explosion'); // Play a sound for opening the chest
 
             switch (chosenPowerup) {
-                case 'spreadGun':
-                    console.log("Spread Gun Activated!");
+                case 'nuke':
+                    killAllEnemiesEffect();
+                    console.log("Chest Powerup: Nuke!");
+                    break;
+                case 'xpSuck':
+                    applyInstantMagnetEffect();
+                    console.log("Chest Powerup: XP Suck!");
+                    break;
+                case 'levelUp':
+                    gainXp(player.nextLevelXp); // Give enough XP for a guaranteed level up
+                    console.log("Chest Powerup: Instant Level Up!");
                     break;
             }
         }
 
-        function deactivateTemporaryPowerup() {
-            if (!temporaryPowerupActive) return;
-
-            switch (temporaryPowerupType) {
-                case 'spreadGun':
-                    console.log("Spread Gun Deactivated!");
-                    break;
+        function applyInstantMagnetEffect() {
+            // Iterate backwards to safely remove items while looping
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                const p = powerups[i];
+                if (p.type === 'xp') {
+                    gainXp(p.xpValue);
+                    powerups.splice(i, 1);
+                }
             }
-            temporaryPowerupActive = false;
-            temporaryPowerupDuration = 0;
-            temporaryPowerupType = '';
         }
+
+        function killAllEnemiesEffect() {
+            // Trigger a visual screen flash
+            screenFlash.active = true;
+            screenFlash.duration = 0.5; // 0.5 seconds flash
+            screenFlash.alpha = 0.7;
+
+            // Damage and clear all enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                score += 10; // Give score for the kill
+                spawnParticles(enemy.x, enemy.y, enemy.color); // Death particle effect
+            }
+            enemies.length = 0; // Remove all enemies from the game
+        }
+
+        // --- END: Chest Powerup Functions ---
         
         function gainXp(amount) {
             const wasMessageBoxHidden = messageBox.style.display !== 'block'; 
@@ -4030,9 +3927,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             projectileSpeedModifier = 1; 
             bulletTimeActive = false; 
             bulletTimeDuration = 0; 
-            temporaryPowerupActive = false; // Reset temporary powerup state
-            temporaryPowerupDuration = 0;
-            temporaryPowerupType = '';
             lastUziSoundTime = 0;
 
             // Reset forcefield specific stats
@@ -4119,6 +4013,14 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             musicPatternTimer += effectiveDt;
             randomChestSpawnTimer += effectiveDt; 
             randomHeartSpawnTimer += effectiveDt;
+
+            if (screenFlash.active) {
+                screenFlash.duration -= dt;
+                screenFlash.alpha = (screenFlash.duration / 0.5) * 0.7; // Fade out effect
+                if (screenFlash.duration <= 0) {
+                    screenFlash.active = false;
+                }
+            }
 
             if (randomChestSpawnTimer >= RANDOM_CHEST_SPAWN_INTERVAL) {
                 if (Math.random() < RANDOM_CHEST_SPAWN_CHANCE) {
@@ -4223,15 +4125,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 ultimateCharge = Math.min(ultimateCharge, ultimateMaxCharge);
             }
 
-            // Removed temporary powerup logic from here as it's no longer needed for Dixie
-            // If Johnny activates a temporary powerup, it will still function as before.
-            if (temporaryPowerupActive) {
-                temporaryPowerupDuration -= dt; 
-                if (temporaryPowerupDuration <= 0) {
-                    deactivateTemporaryPowerup();
-                }
-            }
-
             updatePlayer(effectiveDt);
             updateCamera();
             updateEnemies(effectiveDt);
@@ -4246,7 +4139,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             updateParticles(effectiveDt); 
         }
         
-        async function gameOver() {
+        function gameOver() {
             gameRunning = false;
             isPaused = true; 
             playSound('gameOver');
@@ -4260,8 +4153,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             Tone.Transport.stop(Tone.now()); 
 
             // Save user's personal best score for the current level
-            if (window.saveUserLevelScore) {
-                await window.saveUserLevelScore(currentLevelId, score);
+            if (window.saveUserLevelScoreLocally) {
+                window.saveUserLevelScoreLocally(currentLevelId, score);
             }
 
             showGameOverMenu();
@@ -4269,7 +4162,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             document.getElementById('final-time').textContent = `Time Survived: ${survivalTime.toFixed(1)}s`;
             document.getElementById('final-level').textContent = `Level Reached: ${player.level}`;
 
-            const currentHighScores = await window.getHighScoresFirebase();
+            const currentHighScores = window.getHighScoresLocally();
             const isHighScore = currentHighScores.length < 10 || score > Math.min(...currentHighScores.map(s => s.score));
 
             if (isHighScore) {
@@ -4281,12 +4174,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             }
         }
 
-        async function saveAndDisplayHighScore() {
+        function saveAndDisplayHighScore() {
             const playerName = playerNameInput.value.trim();
             if (playerName) {
                 console.log(`[High Score Modal] Player name entered: "${playerName}"`);
-                if (window.saveHighScoreFirebase) {
-                    await window.saveHighScoreFirebase(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
+                if (window.saveHighScoreLocally) {
+                    window.saveHighScoreLocally(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
                 }
                 highScoreModal.style.display = 'none';
                 displayHighScores('high-scores-list'); // Display high scores on game over menu
@@ -4295,8 +4188,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             }
         }
 
-        async function displayHighScores(targetElementId) {
-            const highScores = await window.getHighScoresFirebase();
+        function displayHighScores(targetElementId) {
+            const highScores = window.getHighScoresLocally();
             const targetList = document.getElementById(targetElementId);
             if (!targetList) {
                 console.error(`Target element with ID ${targetElementId} not found.`);
@@ -4490,13 +4383,10 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             // Initial obstacle generation based on default level
             generateObstacles();
         
-            showStartMenu();
+            // Display high scores on start menu
+            displayHighScores('start-menu-high-scores-list');
 
-            if (typeof window.initFirebase === 'function') {
-                window.initFirebase();
-            } else {
-                console.error("Firebase initialization function not found.");
-            }
+            showStartMenu();
         }
 
         let enemies = []; 
@@ -4683,9 +4573,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             projectileSpeedModifier = 1; 
             bulletTimeActive = false; 
             bulletTimeDuration = 0; 
-            temporaryPowerupActive = false; 
-            temporaryPowerupDuration = 0;
-            temporaryPowerupType = '';
             
             player.invincible = false;
             player.invincibilityTimer = 0;
@@ -4728,45 +4615,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
         
         window.onload = init;
     
-// Ensure dogs target different enemies
-function assignUniqueDogTargets(dogs, enemies) {
-    const usedEnemies = new Set();
-    dogs.forEach(dog => {
-        let target = enemies.find(e => !usedEnemies.has(e));
-        if (target) {
-            dog.target = target;
-            usedEnemies.add(target);
-        }
-    });
-}
-
-function applyInstantMagnetEffect() {
-    xpOrbs.forEach(orb => {
-        orb.x = player.x;
-        orb.y = player.y;
-    });
-}
-
-function collectChest(chest) {
-    score += 100;
-    applyInstantMagnetEffect();
-    playSound('explosion');
-}
 </script>
-<script>
-function handleLevelUp() {
-    isPaused = true;
-    Tone.Speak && Tone.Speak('Level up!');
-    setTimeout(() => {
-        messageBox.style.display = 'block';
-        drawPowerUpOptions();
-    }, 1000);
-}
-</script><script>
-function saveScoreLocally(score) {
-    const scores = JSON.parse(localStorage.getItem("localHighScores") || "[]");
-    scores.push(score);
-    localStorage.setItem("localHighScores", JSON.stringify(scores));
-}
-</script></body>
+</body>
 </html>
