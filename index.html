@@ -152,7 +152,7 @@
             background: linear-gradient(90deg, #ffcc00, #ff6600);
         }
 
-        #message-box, .menu, #level-select-menu, #character-select-menu {
+        #message-box, .menu, #level-select-menu, #character-select-menu, #options-menu {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -215,7 +215,7 @@
             margin-bottom: 0;
         }
 
-        .menu button, .control-button, #level-select-menu button, #character-select-menu button { 
+        .menu button, .control-button, #level-select-menu button, #character-select-menu button, #options-menu button { 
             background: linear-gradient(45deg, #ff0000, #990000);
             color: #d1d1d1;
             border: none;
@@ -232,9 +232,16 @@
             white-space: nowrap;
         }
         
-        .menu button:hover, .control-button:hover, #level-select-menu button:hover, #character-select-menu button:hover {
+        .menu button:hover, .control-button:hover, #level-select-menu button:hover, #character-select-menu button:hover, #options-menu button:hover {
             transform: translateY(-3px) scale(1.05);
             box-shadow: 0 8px 20px rgba(255, 0, 0, 0.6);
+        }
+        
+        .menu button.active-option {
+            background: linear-gradient(45deg, #00ffff, #009999);
+            color: #000;
+            box-shadow: 0 5px 15px rgba(0, 255, 255, 0.6);
+            transform: translateY(-3px) scale(1.05);
         }
 
         #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton, #backToMainMenuButtonFromGame { 
@@ -476,12 +483,7 @@
     
         /* Responsive font sizes using vw units */
         @media (max-width: 900px) {
-            #gameContainer {
-                width: 100vw;
-                height: calc(100vw * 7 / 9); /* Maintain aspect ratio */
-                max-width: 100%;
-                max-height: 100%;
-            }
+            /* General font scaling for smaller screens */
             .hud-item, .menu, #high-score-modal, .power-card, .character-card,
             .menu button, .control-button, #ultimate-button,
             #high-score-modal input, #high-score-modal button,
@@ -529,14 +531,6 @@
                 max-width: clamp(150px, 40vw, 250px);
             }
         }
-
-        /* Specific styles for folding phones (example media query) */
-        @media (max-width: 600px) and (max-height: 1000px) and (orientation: portrait) {
-            #gameContainer {
-                width: 98vw;
-                height: calc(98vw * 7 / 9); /* Maintain aspect ratio */
-            }
-        }
     </style>
 </head>
 <body>
@@ -565,10 +559,21 @@
         <p>New: Enemies can now shoot back! Be careful of the gunmen.</p>
         <button id="startButton">Start Game</button>
         <button id="levelSelectButton">Level Select</button>
+        <button id="optionsButton">Options</button>
         <button id="autoPlayButton">Play for Me</button>
         <h3>Global High Scores</h3>
         <ul id="start-menu-high-scores-list">
         </ul>
+    </div>
+    <div class="menu" id="options-menu" style="display: none;">
+        <h1>Options</h1>
+        <p>Choose your display ratio:</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+            <button class="ratio-option" data-ratio="21:9" id="ratio21_9">Vertical 21:9 (iPhone & Android)</button>
+            <button class="ratio-option" data-ratio="1:1" id="ratio1_1">Square 1:1</button>
+            <button class="ratio-option" data-ratio="4:3" id="ratio4_3">Classic 4:3 (Folding Phones)</button>
+        </div>
+        <button id="backToStartMenuFromOptions">Back</button>
     </div>
     <div class="menu" id="game-over-menu" style="display: none;">
         <h1>GAME OVER</h1>
@@ -716,6 +721,10 @@
     const characterOptionsDiv = document.getElementById('character-options'); 
     const backToStartMenuFromCharSelect = document.getElementById('backToStartMenuFromCharSelect');
     const backToMainMenuButtonGameOver = document.getElementById('backToMainMenuButtonGameOver');
+    const optionsButton = document.getElementById('optionsButton');
+    const optionsMenu = document.getElementById('options-menu');
+    const backToStartMenuFromOptions = document.getElementById('backToStartMenuFromOptions');
+    const ratioButtons = document.querySelectorAll('.ratio-option');
 
     const scoreDisplay = document.getElementById('score-display');
     const timeDisplay = document.getElementById('time-display');
@@ -828,6 +837,7 @@
     let lastShotSoundTime = 0;
     let lastEnemyHitSoundTime = 0;
     const enemyHitSoundCooldown = 0.05;
+    let currentAspectRatio = localStorage.getItem('jws_aspectRatio') || '1:1'; // Load or default
 
     // Tone.js audio setup (only for sound effects, music removed)
     let playerSynth, enemyHitSynth, levelUpSynth, ultimateSynth, gameOverSynth, explosionSound;
@@ -969,6 +979,30 @@
 
     function showLevelUpMenu() {
         // ... (existing code)
+    }
+    
+    function showOptionsMenu() {
+        startMenu.style.display = 'none';
+        optionsMenu.style.display = 'block';
+        updateOptionsUi();
+    }
+
+    function updateOptionsUi() {
+        ratioButtons.forEach(button => {
+            if (button.dataset.ratio === currentAspectRatio) {
+                button.classList.add('active-option');
+            } else {
+                button.classList.remove('active-option');
+            }
+        });
+    }
+
+    function setAspectRatio(ratio) {
+        currentAspectRatio = ratio;
+        localStorage.setItem('jws_aspectRatio', ratio);
+        resizeCanvas();
+        updateOptionsUi();
+        console.log(`Aspect ratio set to ${ratio}.`);
     }
 
     function updateHud() {
@@ -1116,7 +1150,61 @@
     }
 
     function resizeCanvas() {
-        // ... (existing code)
+        // The game's native resolution
+        const baseWidth = 900;
+        const baseHeight = 700;
+
+        let viewportWidth, viewportHeight;
+        const viewportRatio = window.innerWidth / window.innerHeight;
+
+        let gameWidth, gameHeight;
+        let scale = 1;
+
+        // Apply selected aspect ratio
+        if (currentAspectRatio === '21:9') {
+            gameHeight = window.innerHeight;
+            gameWidth = gameHeight * 9 / 21;
+            scale = gameHeight / baseHeight;
+            if (gameWidth > window.innerWidth) {
+                gameWidth = window.innerWidth;
+                gameHeight = gameWidth * 21 / 9;
+                scale = gameWidth / baseWidth;
+            }
+        } else if (currentAspectRatio === '4:3') {
+            gameWidth = window.innerWidth;
+            gameHeight = gameWidth * 3 / 4;
+            scale = gameWidth / baseWidth;
+            if (gameHeight > window.innerHeight) {
+                gameHeight = window.innerHeight;
+                gameWidth = gameHeight * 4 / 3;
+                scale = gameHeight / baseHeight;
+            }
+        } else { // Default to 1:1 square
+            gameWidth = Math.min(window.innerWidth, window.innerHeight);
+            gameHeight = gameWidth;
+            scale = gameWidth / baseWidth;
+        }
+
+        gameContainer.style.width = `${gameWidth}px`;
+        gameContainer.style.height = `${gameHeight}px`;
+
+        // Adjust canvas scaling to fit the new container dimensions
+        const containerRatio = gameWidth / gameHeight;
+        const baseRatio = baseWidth / baseHeight;
+
+        let finalScale = 1;
+        if (containerRatio > baseRatio) {
+            finalScale = gameHeight / baseHeight;
+        } else {
+            finalScale = gameWidth / baseWidth;
+        }
+
+        gameContainer.style.transform = `scale(${finalScale})`;
+
+        canvas.width = baseWidth;
+        canvas.height = baseHeight;
+        
+        console.log(`Resized canvas: ${canvas.width}x${canvas.height} with aspect ratio ${currentAspectRatio}. Container: ${gameContainer.style.width}x${gameContainer.style.height}, Scale: ${finalScale}`);
     }
 
     // Event Listeners
@@ -1147,7 +1235,69 @@
     });
 
     // Button event listeners
-    // ... (existing code)
+    document.getElementById('startButton').addEventListener('click', () => {
+        showCharacterSelectMenu();
+    });
+
+    document.getElementById('levelSelectButton').addEventListener('click', () => {
+        showLevelSelectMenu();
+    });
+
+    document.getElementById('optionsButton').addEventListener('click', showOptionsMenu);
+
+    document.getElementById('autoPlayButton').addEventListener('click', () => {
+        // ... (existing code)
+    });
+
+    document.getElementById('restartButton').addEventListener('click', () => {
+        // ... (existing code)
+    });
+
+    document.getElementById('saveScoreButton').addEventListener('click', () => {
+        // ... (existing code)
+    });
+
+    document.getElementById('pauseButton').addEventListener('click', () => {
+        if (!isGameOver) {
+            pauseGame();
+        }
+    });
+    
+    document.getElementById('menuButton').addEventListener('click', pauseGame);
+
+    document.getElementById('muteMusicButton').addEventListener('click', toggleMusicMute);
+
+    document.getElementById('resumeFromMenuButton').addEventListener('click', resumeGame);
+
+    document.getElementById('backToMainMenuButtonFromGame').addEventListener('click', showMainMenu);
+
+    document.getElementById('backToMainMenuButton').addEventListener('click', showMainMenu);
+
+    document.getElementById('backToMainMenuButtonGameOver').addEventListener('click', showMainMenu);
+
+    document.getElementById('ultimate-button').addEventListener('click', handleUltimate);
+    
+    document.querySelectorAll('#level-options button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            // ... (existing code)
+        });
+    });
+
+    document.querySelectorAll('.character-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            // ... (existing code)
+        });
+    });
+    
+    document.getElementById('backToStartMenuFromCharSelect').addEventListener('click', showMainMenu);
+
+    document.getElementById('backToStartMenuFromOptions').addEventListener('click', showMainMenu);
+
+    ratioButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            setAspectRatio(e.target.dataset.ratio);
+        });
+    });
 
     function toggleMusicMute() {
         // ... (existing code)
