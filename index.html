@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
 <title>Johnny Wicked Survivors</title>
 <style>
         @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&display=swap');
@@ -18,27 +18,24 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            width: 100vw; /* Ensure body takes full width */
-            user-select: none; /* Prevent text selection on touch */
-            -webkit-tap-highlight-color: rgba(0,0,0,0); /* Remove tap highlight on iOS */
-            flex-direction: column; /* For better mobile layout */
+            width: 100vw;
+            user-select: none;
+            -webkit-tap-highlight-color: rgba(0,0,0,0);
+            flex-direction: column;
         }
         
         #gameContainer {
             position: relative;
-            width: 900px; /* Base width */
-            height: 700px; /* Base height */
+            /* Base width and height, will be scaled by JS */
+            width: 900px;
+            height: 700px;
             background: #0a0a0a;
             border: 3px solid #333;
             border-radius: 5px;
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
             overflow: hidden;
-
-            /* Responsive adjustments for gameContainer */
-            max-width: 95vw; /* Max width relative to viewport */
-            max-height: 95vh; /* Max height relative to viewport */
-            aspect-ratio: 9 / 7; /* Maintain aspect ratio */
-            box-sizing: border-box; /* Include padding and border in element's total width and height */
+            box-sizing: border-box;
+            transform-origin: center center; /* Ensure scaling is centered */
         }
 
         canvas {
@@ -47,8 +44,8 @@
             image-rendering: pixelated;
             position: relative;
             z-index: 2;
-            width: 100%; /* Make canvas fill its container */
-            height: 100%; /* Make canvas fill its container */
+            width: 100%;
+            height: 100%;
         }
         
         #ui {
@@ -62,13 +59,14 @@
         }
 
         .hud-item {
-            position: absolute;
+            position: absolute; /* Keep absolute for precise placement within UI overlay */
             background-color: rgba(0, 0, 0, 0.7);
             padding: 5px 10px;
             border-radius: 5px;
-            font-size: 14px;
+            font-size: 14px; /* Will be scaled by JS */
             text-shadow: 1px 1px 2px #000;
             border: 1px solid #333;
+            white-space: nowrap; /* Prevent text wrapping */
         }
         
         /* Top Left Controls: Score and Pause Button */
@@ -79,8 +77,8 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 5px;
-            pointer-events: all; /* Allow interaction */
+            gap: 5px; /* Will be scaled by JS */
+            pointer-events: all;
         }
 
         /* Bottom Left Controls: Time, Menu, and Level */
@@ -91,25 +89,23 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 5px;
-            pointer-events: all; /* Allow interaction */
+            gap: 5px; /* Will be scaled by JS */
+            pointer-events: all;
         }
 
         #score-display {
-            position: static; /* Remove absolute positioning from here */
-            margin-bottom: 5px; /* Space between score and pause button */
+            position: static;
+            margin-bottom: 5px;
         }
         
-        /* Time display now part of bottom-left-controls */
         #time-display {
-            position: static; /* Remove absolute positioning from here */
-            margin-bottom: 5px; /* Space between time and menu button */
-            display: block; /* Ensure it's visible */
+            position: static;
+            margin-bottom: 5px;
+            display: block;
         }
         
         #level-display {
-            position: static; /* Remove absolute positioning from here */
-            /* No margin-bottom needed as it's the last item */
+            position: static;
         }
         
         #xp-bar-container {
@@ -117,8 +113,8 @@
             bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
-            width: 300px;
-            height: 15px;
+            width: 300px; /* Will be scaled by JS */
+            height: 15px; /* Will be scaled by JS */
             background-color: rgba(255, 255, 255, 0.1);
             border: 1px solid #444;
             border-radius: 7.5px;
@@ -134,11 +130,11 @@
 
         #ultimate-bar-container {
             position: absolute;
-            bottom: 30px;
+            bottom: 30px; /* Will be scaled by JS */
             left: 50%;
             transform: translateX(-50%);
-            width: 300px;
-            height: 10px;
+            width: 300px; /* Will be scaled by JS */
+            height: 10px; /* Will be scaled by JS */
             background-color: rgba(255, 255, 255, 0.1);
             border: 1px solid #444;
             border-radius: 5px;
@@ -151,41 +147,47 @@
             background: linear-gradient(90deg, #ffcc00, #ff6600);
         }
 
-        #message-box, .menu, #level-select-menu, #character-select-menu { /* Apply menu styles to message-box, game-menu, level-select-menu, and character-select-menu */
+        #message-box, .menu, #level-select-menu, #character-select-menu {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             background-color: rgba(0, 0, 0, 0.9);
             border: 2px solid #00ffff;
-            padding: 20px;
+            padding: 20px; /* Will be scaled by JS */
             border-radius: 10px;
             text-align: center;
-            font-size: 1.2em;
+            font-size: 1.2em; /* Will be scaled by JS */
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
             display: none;
             pointer-events: all;
-            z-index: 11; /* Ensure menus are on top */
+            z-index: 11;
+            /* Make menus responsive */
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-sizing: border-box;
         }
         
         #power-selection {
             display: flex;
-            gap: 20px;
+            gap: 20px; /* Will be scaled by JS */
             flex-wrap: wrap;
             justify-content: center;
-            margin-top: 20px;
+            margin-top: 20px; /* Will be scaled by JS */
         }
 
         .power-card, .character-card {
             background-color: rgba(255, 255, 255, 0.05);
             border: 1px solid #00ffff;
-            padding: 15px;
-            width: 160px; /* Reduced width */
+            padding: 15px; /* Will be scaled by JS */
+            width: 160px; /* Will be scaled by JS */
             border-radius: 5px;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             text-align: left;
             pointer-events: all;
+            box-sizing: border-box;
         }
         
         .power-card:hover, .character-card:hover {
@@ -201,24 +203,23 @@
         }
         
         .power-card p, .character-card p {
-            font-size: 0.8em;
+            font-size: 0.8em; /* Will be scaled by JS */
             margin-bottom: 0;
         }
 
-        /* General menu button styles */
         .menu button, .control-button, #level-select-menu button, #character-select-menu button { 
             background: linear-gradient(45deg, #ff0000, #990000);
             color: #d1d1d1;
             border: none;
-            padding: 15px 30px;
-            font-size: 1.2em;
+            padding: 15px 30px; /* Will be scaled by JS */
+            font-size: 1.2em; /* Will be scaled by JS */
             font-family: 'Chakra Petch', monospace;
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin-top: 20px;
+            margin-top: 20px; /* Will be scaled by JS */
             box-shadow: 0 5px 15px rgba(255, 0, 0, 0.4);
-            white-space: nowrap; /* Prevent text wrapping */
+            white-space: nowrap;
         }
         
         .menu button:hover, .control-button:hover, #level-select-menu button:hover, #character-select-menu button:hover {
@@ -226,12 +227,11 @@
             box-shadow: 0 8px 20px rgba(255, 0, 0, 0.6);
         }
 
-        /* Specific styles for the new control buttons */
         #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton, #backToMainMenuButtonFromGame { 
-            padding: 8px 15px; /* Smaller padding for control buttons */
-            font-size: 1em; /* Smaller font size */
-            margin-top: 0; /* Remove top margin */
-            background: linear-gradient(45deg, #007bff, #0056b3); /* Blue gradient */
+            padding: 8px 15px; /* Will be scaled by JS */
+            font-size: 1em; /* Will be scaled by JS */
+            margin-top: 0;
+            background: linear-gradient(45deg, #007bff, #0056b3);
             box-shadow: 0 3px 10px rgba(0, 123, 255, 0.4);
         }
 
@@ -241,14 +241,14 @@
 
         #ultimate-button {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
+            bottom: 20px; /* Will be scaled by JS */
+            right: 20px; /* Will be scaled by JS */
             pointer-events: all;
             background: #ff6600;
             color: #fff;
             border: none;
-            padding: 10px 20px;
-            font-size: 1.2em;
+            padding: 10px 20px; /* Will be scaled by JS */
+            font-size: 1.2em; /* Will be scaled by JS */
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
@@ -268,7 +268,7 @@
         .damage-number {
             position: absolute;
             color: #ff0000;
-            font-size: 10px;
+            font-size: 10px; /* Will be scaled by JS */
             font-weight: bold;
             text-shadow: 1px 1px 1px #000;
             animation: fadeOutUp 1s forwards;
@@ -286,13 +286,12 @@
             }
         }
 
-        /* Particle effect styles */
         .particle {
             position: absolute;
-            background-color: rgba(255, 255, 255, 0.8); /* White with some transparency */
-            border-radius: 50%; /* Make them circular */
-            pointer-events: none; /* Do not block mouse events */
-            animation: fadeOutAndShrink 0.8s forwards; /* Animation for fading and shrinking */
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: fadeOutAndShrink 0.8s forwards;
         }
 
         @keyframes fadeOutAndShrink {
@@ -313,39 +312,41 @@
             transform: translate(-50%, -50%);
             background-color: rgba(0, 0, 0, 0.95);
             border: 2px solid #00ffff;
-            padding: 30px;
+            padding: 30px; /* Will be scaled by JS */
             border-radius: 10px;
             text-align: center;
             box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
             z-index: 20;
-            display: none; /* Hidden by default */
+            display: none;
             pointer-events: all;
+            max-width: 90%;
+            box-sizing: border-box;
         }
 
         #high-score-modal input {
             background-color: #1a1a1a;
             border: 1px solid #00ffff;
             color: #d1d1d1;
-            padding: 10px;
-            margin: 15px 0;
+            padding: 10px; /* Will be scaled by JS */
+            margin: 15px 0; /* Will be scaled by JS */
             border-radius: 5px;
             width: 80%;
-            max-width: 250px;
+            max-width: 250px; /* Will be scaled by JS */
             font-family: 'Chakra Petch', monospace;
-            font-size: 1em;
+            font-size: 1em; /* Will be scaled by JS */
         }
 
         #high-score-modal button {
             background: linear-gradient(45deg, #00ffff, #009999);
             color: #000;
             border: none;
-            padding: 10px 20px;
-            font-size: 1em;
+            padding: 10px 20px; /* Will be scaled by JS */
+            font-size: 1em; /* Will be scaled by JS */
             font-family: 'Chakra Petch', monospace;
             border-radius: 5px;
             cursor: pointer;
             transition: all 0.2s ease;
-            margin-top: 10px;
+            margin-top: 10px; /* Will be scaled by JS */
         }
 
         #high-score-modal button:hover {
@@ -356,14 +357,15 @@
         #high-scores-list, #start-menu-high-scores-list {
             list-style: none;
             padding: 0;
-            margin-top: 20px;
-            max-height: 200px;
+            margin-top: 20px; /* Will be scaled by JS */
+            max-height: 200px; /* Will be scaled by JS */
             overflow-y: auto;
             text-align: left;
             border: 1px solid #333;
             border-radius: 5px;
-            padding: 10px;
+            padding: 10px; /* Will be scaled by JS */
             background-color: rgba(0, 0, 0, 0.5);
+            font-size: 0.9em; /* Will be scaled by JS */
         }
 
         #high-scores-list li, #start-menu-high-scores-list li {
@@ -385,14 +387,15 @@
         .level-card {
             background-color: rgba(255, 255, 255, 0.05);
             border: 1px solid #00ffff;
-            padding: 15px;
-            width: 250px;
+            padding: 15px; /* Will be scaled by JS */
+            width: 250px; /* Will be scaled by JS */
             border-radius: 5px;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             text-align: center;
             pointer-events: all;
-            margin-bottom: 15px; /* Space between cards */
+            margin-bottom: 15px; /* Will be scaled by JS */
+            box-sizing: border-box;
         }
 
         .level-card.locked {
@@ -410,33 +413,33 @@
         .level-card h3 {
             margin-top: 0;
             color: #00ffff;
-            font-size: 1.5em;
+            font-size: 1.5em; /* Will be scaled by JS */
         }
 
         .level-card p {
-            font-size: 1em;
+            font-size: 1em; /* Will be scaled by JS */
             margin-bottom: 5px;
         }
 
         .level-card .unlock-info {
             color: #ffdd00;
-            font-size: 0.8em;
+            font-size: 0.8em; /* Will be scaled by JS */
             font-weight: bold;
         }
 
         /* Mini-map styles */
         #miniMapContainer {
             position: absolute;
-            top: 10px;
-            right: 10px; /* Position in top right */
-            width: 150px; /* Fixed width */
-            height: 150px; /* Fixed height to make it square */
+            top: 10px; /* Will be scaled by JS */
+            right: 10px; /* Will be scaled by JS */
+            width: 150px; /* Will be scaled by JS */
+            height: 150px; /* Will be scaled by JS */
             background-color: rgba(0, 0, 0, 0.8);
             border: 2px solid #00ffff;
             border-radius: 10px;
             overflow: hidden;
             z-index: 10;
-            pointer-events: none; /* Only for display, not interaction */
+            pointer-events: none;
         }
 
         #miniMapCanvas {
@@ -445,7 +448,146 @@
             display: block;
         }
     
-/* Knife icon update pending: replace with SVG or better representation */</style>
+        /* Mobile controls for touch input */
+        #mobileControls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            z-index: 12; /* Above menus but below ultimate button for now */
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none; /* Hidden by default, shown by JS on small screens */
+            pointer-events: none; /* Initially non-interactive until activated */
+        }
+
+        .mobile-joystick-container {
+            position: absolute;
+            bottom: 30px; /* Will be scaled by JS */
+            width: 150px; /* Will be scaled by JS */
+            height: 150px; /* Will be scaled by JS */
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: all; /* Make container interactive */
+            z-index: 12; /* Above game elements */
+        }
+
+        #movementJoystick {
+            left: 20px; /* Will be scaled by JS */
+        }
+
+        #attackJoystick {
+            right: 20px; /* Will be scaled by JS */
+        }
+
+        .joystick-handle {
+            width: 60px; /* Will be scaled by JS */
+            height: 60px; /* Will be scaled by JS */
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            cursor: grab;
+            position: absolute; /* Allows movement within container */
+            touch-action: none; /* Prevents default touch behavior */
+        }
+
+        /* Responsive font sizes using vw units */
+        @media (max-width: 900px) {
+            #gameContainer {
+                width: 100vw;
+                height: calc(100vw * 7 / 9); /* Maintain aspect ratio */
+                max-width: 100%;
+                max-height: 100%;
+            }
+            .hud-item, .menu, #high-score-modal, .power-card, .character-card,
+            .menu button, .control-button, #ultimate-button,
+            #high-score-modal input, #high-score-modal button,
+            #high-scores-list, #start-menu-high-scores-list,
+            .level-card, .level-card h3, .level-card p, .level-card .unlock-info {
+                font-size: clamp(0.7em, 2.5vw, 1.2em); /* Fluid font size */
+                padding: clamp(5px, 1.5vw, 15px) clamp(10px, 3vw, 30px);
+                margin-top: clamp(10px, 2vw, 20px);
+                margin-bottom: clamp(5px, 1vw, 15px);
+            }
+            #xp-bar-container, #ultimate-bar-container {
+                width: clamp(200px, 50vw, 300px);
+                height: clamp(10px, 1.5vw, 15px);
+            }
+            #ultimate-bar-container {
+                bottom: clamp(15px, 4vw, 30px);
+            }
+            #ultimate-button {
+                bottom: clamp(10px, 3vw, 20px);
+                right: clamp(10px, 3vw, 20px);
+            }
+            #miniMapContainer {
+                width: clamp(100px, 20vw, 150px);
+                height: clamp(100px, 20vw, 150px);
+                top: clamp(5px, 1.5vw, 10px);
+                right: clamp(5px, 1.5vw, 10px);
+            }
+            .power-card, .character-card {
+                width: clamp(120px, 25vw, 160px);
+            }
+            .level-card {
+                width: clamp(200px, 40vw, 250px);
+            }
+            #mobileControls {
+                display: flex; /* Show for small screens */
+                pointer-events: all;
+            }
+            .mobile-joystick-container {
+                bottom: clamp(10px, 5vw, 30px);
+                width: clamp(100px, 25vw, 150px);
+                height: clamp(100px, 25vw, 150px);
+            }
+            #movementJoystick {
+                left: clamp(10px, 5vw, 20px);
+            }
+            #attackJoystick {
+                right: clamp(10px, 5vw, 20px);
+            }
+            .joystick-handle {
+                width: clamp(40px, 10vw, 60px);
+                height: clamp(40px, 10vw, 60px);
+            }
+            #top-left-controls, #bottom-left-controls {
+                top: clamp(5px, 1.5vw, 10px);
+                left: clamp(5px, 1.5vw, 10px);
+                gap: clamp(3px, 0.8vw, 5px);
+            }
+            #bottom-left-controls {
+                bottom: clamp(5px, 1.5vw, 10px);
+                left: clamp(5px, 1.5vw, 10px);
+            }
+            #high-score-modal input {
+                max-width: clamp(150px, 40vw, 250px);
+            }
+        }
+
+        /* Specific styles for folding phones (example media query) */
+        @media (max-width: 600px) and (max-height: 1000px) and (orientation: portrait) {
+            #gameContainer {
+                width: 98vw;
+                height: calc(98vw * 7 / 9); /* Maintain aspect ratio */
+            }
+            .mobile-joystick-container {
+                bottom: 10px;
+                width: 120px;
+                height: 120px;
+            }
+            .joystick-handle {
+                width: 50px;
+                height: 50px;
+            }
+        }
+</style>
 </head>
 <body>
 <div id="gameContainer">
@@ -473,7 +615,7 @@
 <p>New: Enemies can now shoot back! Be careful of the gunmen.</p>
 <button id="startButton">Start Game</button>
 <button id="levelSelectButton">Level Select</button>
-<button id="autoPlayButton">Play for Me</button> <!-- New auto-play button -->
+<button id="autoPlayButton">Play for Me</button>
 <h3>Global High Scores</h3>
 <ul id="start-menu-high-scores-list">
 </ul>
@@ -526,6 +668,14 @@
 </div>
 </div>
 <button id="backToStartMenuFromCharSelect">Back</button>
+</div>
+<div id="mobileControls">
+    <div id="movementJoystick" class="mobile-joystick-container">
+        <div class="joystick-handle"></div>
+    </div>
+    <div id="attackJoystick" class="mobile-joystick-container">
+        <div class="joystick-handle"></div>
+    </div>
 </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
@@ -608,11 +758,11 @@
         const playerNameInput = document.getElementById('playerNameInput');
         const saveScoreButton = document.getElementById('saveScoreButton');
         const highScoresList = document.getElementById('high-scores-list');
-        const startMenuHighScoresList = document.getElementById('start-menu-high-scores-list'); // New element for start menu
+        const startMenuHighScoresList = document.getElementById('start-menu-high-scores-list');
         const pauseButton = document.getElementById('pauseButton'); 
         const menuButton = document.getElementById('menuButton');     
         const gameMenu = document.getElementById('game-menu');       
-        const autoPlayButton = document.getElementById('autoPlayButton'); // New auto-play button
+        const autoPlayButton = document.getElementById('autoPlayButton');
         const resumeFromMenuButton = document.getElementById('resumeFromMenuButton'); 
         const levelSelectButton = document.getElementById('levelSelectButton'); 
         const levelSelectMenu = document.getElementById('level-select-menu'); 
@@ -622,7 +772,7 @@
         const characterSelectMenu = document.getElementById('character-select-menu'); 
         const characterOptionsDiv = document.getElementById('character-options'); 
         const backToStartMenuFromCharSelect = document.getElementById('backToStartMenuFromCharSelect'); 
-        const backToMainMenuButtonGameOver = document.getElementById('backToMainMenuButtonGameOver'); // New button
+        const backToMainMenuButtonGameOver = document.getElementById('backToMainMenuButtonGameOver');
 
         const scoreDisplay = document.getElementById('score-display');
         const timeDisplay = document.getElementById('time-display');
@@ -630,10 +780,16 @@
         const xpBar = document.getElementById('xp-bar');
         const ultimateBar = document.getElementById('ultimate-bar');
 
+        const mobileControls = document.getElementById('mobileControls');
+        const movementJoystickContainer = document.getElementById('movementJoystick');
+        const attackJoystickContainer = document.getElementById('attackJoystick');
+        const movementJoystickHandle = movementJoystickContainer.querySelector('.joystick-handle');
+        const attackJoystickHandle = attackJoystickContainer.querySelector('.joystick-handle');
+
         // Mini-map elements
         const miniMapCanvas = document.getElementById('miniMapCanvas');
         const miniMapCtx = miniMapCanvas.getContext('2d');
-        let miniMapScale = 1; // Will be calculated in init
+        let miniMapScale = 1;
 
         // Game state variables
         let gameRunning = false;
@@ -669,7 +825,7 @@
         let chests = []; 
         let drones = []; 
         let boomerangs = []; 
-        let autoPlayActive = false; // New: Flag for auto-play mode
+        let autoPlayActive = false;
 
         // Camera for a larger game world
         let camera = {
@@ -692,8 +848,8 @@
             color: '#6A808C', 
             baseColor: '#6A808C', 
             speed: 300, 
-            health: 100, // This will be set based on character in startGame
-            maxHealth: 100, // This will be set based on character in startGame
+            health: 100,
+            maxHealth: 100,
             xp: 0,
             nextLevelXp: 100,
             level: 1,
@@ -730,15 +886,15 @@
                 forcefieldDamage: 0,     
                 forcefieldRadius: 0,     
                 leashWhipDamage: 0,      
-                knifeDamage: 0, // New: Knife damage
-                knifeCount: 0,  // New: Number of knives thrown
-                knifeCooldown: 1.5, // New: Cooldown for knife throw
-                swordDamage: 0, // New: Sword damage
-                swordPierce: 0, // New: Sword pierce
-                swordCooldown: 3, // New: Cooldown for sword throw
-                acidAuraDamage: 0, // New: Acid Aura damage
-                acidAuraInterval: 0, // New: Acid Aura interval
-                acidAuraRadius: 0, // New: Acid Aura radius
+                knifeDamage: 0,
+                knifeCount: 0,
+                knifeCooldown: 1.5,
+                swordDamage: 0,
+                swordPierce: 0,
+                swordCooldown: 3,
+                acidAuraDamage: 0,
+                acidAuraInterval: 0,
+                acidAuraRadius: 0,
             },
             upgrades: {
                 damage: 0,
@@ -764,9 +920,9 @@
                 leashWhip: 0,            
                 dogStrength: 0,          
                 dogSpeed: 0,             
-                knifeThrow: 0, // New: Knife Throw upgrade level
-                swordThrow: 0, // New: Sword Throw upgrade level
-                acidAura: 0, // New: Acid Aura upgrade level
+                knifeThrow: 0,
+                swordThrow: 0,
+                acidAura: 0,
             },
             burstChargeCooldown: 5, 
             burstChargeTimer: 0, 
@@ -785,19 +941,19 @@
             forcefieldTimer: 0,      
             forcefieldHitEnemies: new Set(), 
             leashWhipTimer: 0,       
-            leashWhipActive: false, // New: Leash whip visual active state
-            leashWhipAnimationTimer: 0, // New: Leash whip animation timer
-            leashWhipTargetX: 0, // New: Leash whip target X for drawing
-            leashWhipTargetY: 0, // New: Leash whip target Y for drawing
-            knifeThrowTimer: 0, // New: Timer for knife throw cooldown
-            swordThrowTimer: 0, // New: Timer for sword throw cooldown
-            acidAuraTimer: 0, // New: Timer for Acid Aura pulse
-            acidAuraAngle: 0, // New: Angle for Acid Aura rotation
-            acidAuraHitEnemies: new Set(), // New: To track enemies hit by current acid pulse
-            invincible: false, // New: Player invincibility state
-            invincibilityTimer: 0, // New: Duration of invincibility
-            flashTimer: 0, // New: Timer for player flash effect
-            isFlashing: false // New: Flag for flash effect
+            leashWhipActive: false,
+            leashWhipAnimationTimer: 0,
+            leashWhipTargetX: 0,
+            leashWhipTargetY: 0,
+            knifeThrowTimer: 0,
+            swordThrowTimer: 0,
+            acidAuraTimer: 0,
+            acidAuraAngle: 0,
+            acidAuraHitEnemies: new Set(),
+            invincible: false,
+            invincibilityTimer: 0,
+            flashTimer: 0,
+            isFlashing: false
         };
 
         // Game control states
@@ -807,6 +963,13 @@
         const UZI_SOUND_COOLDOWN = 0.05; 
         let levelUpQueue = []; 
 
+        // Mobile control variables
+        let movementJoystickActive = false;
+        let attackJoystickActive = false;
+        let movementInput = { x: 0, y: 0 };
+        let attackInput = { x: 0, y: 0 };
+        const JOYSTICK_MAX_DIST = 50; // Max distance handle can move from center
+
         // Level management
         let currentLevelId = 'hotel_lobby'; 
         let currentCharacter = 'johnny';
@@ -815,7 +978,7 @@
         let allyDogs = []; 
         let dogProjectileDamage = 0;
         let dogProjectileSpeed = 0;
-        const DOG_LEASH_RADIUS = 40; // Dogs stay closer // Increased leash radius for dogs (CHANGED from 120)
+        const DOG_LEASH_RADIUS = 40;
 
         // Enemy and power-up configuration
         const ENEMY_TYPES = ['basic', 'fast', 'tank', 'elite', 'gunner', 'drone', 'car', 'ninja', 'enemyDog', 'enemyDrone', 'cobra', 'robotDrone', 'yellowSkull', 'enforcer']; 
@@ -830,7 +993,7 @@
         const lvl = player.upgrades.acidAura = (player.upgrades.acidAura || 0) + 1;
         player.stats.acidAuraDamage = 20 + lvl * 10;
         player.stats.acidAuraInterval = Math.max(0.4, 1 - lvl * 0.1);
-        player.stats.acidAuraRadius = 50 + lvl * 15; // Define radius for visual and collision
+        player.stats.acidAuraRadius = 50 + lvl * 15;
     },
     next: () => `Boost acid pulse damage to ${20 + ((player.upgrades.acidAura || 0) + 1) * 10}. Radius: ${50 + ((player.upgrades.acidAura || 0) + 1) * 15}. Interval: ${(Math.max(0.4, 1 - ((player.upgrades.acidAura || 0) + 1) * 0.1)).toFixed(1)}s.`,
     characters: ['johnny', 'dixie']
@@ -927,7 +1090,7 @@
                 player.upgrades.spinningKnives++;
                 player.stats.spinningKnivesCount++;
                 player.stats.spinningKnivesDamage = 25 + player.upgrades.spinningKnives * 10;
-player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
+                player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 updateSpinningKnivesEffect();
               },
               next: () => `Summon ${player.upgrades.spinningKnives + 1} spinning knives (wider orbit). (Lvl ${player.upgrades.spinningKnives + 1}/${MAX_UPGRADE_LEVEL})`,
@@ -955,15 +1118,15 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 player.shotgunTimer = 0; 
               },
               next: () => `Fires ${5 + (player.upgrades.shotgun + 1) * 2} pellets with a short range. (Lvl ${player.upgrades.shotgun + 1}/${MAX_UPGRADE_LEVEL})`, 
-              characters: ['johnny', 'dixie'] // Added Dixie here
+              characters: ['johnny', 'dixie']
             },
             { id: 'dualUzi', name: 'Dual Uzis', description: 'Fires two continuous streams of bullets.',
               level: () => player.upgrades.dualUzi,
               effect: () => {
                 player.upgrades.dualUzi++;
                 player.stats.dualUziActive = true;
-                player.stats.dualUziFireRate = 10 + player.upgrades.dualUzi * 5; // Increased fire rate (CHANGED)
-                player.stats.dualUziDamage = 8 + player.upgrades.dualUzi * 4; // Increased damage (CHANGED)
+                player.stats.dualUziFireRate = 10 + player.upgrades.dualUzi * 5;
+                player.stats.dualUziDamage = 8 + player.upgrades.dualUzi * 4;
                 player.dualUziTimer = 0; 
               },
               next: () => `Fires two streams at ${10 + (player.upgrades.dualUzi + 1) * 5} bullets/s. (Lvl ${player.upgrades.dualUzi + 1}/${MAX_UPGRADE_LEVEL})`,
@@ -985,13 +1148,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
               effect: () => {
                 player.upgrades.forcefield++;
                 player.stats.forcefieldActive = true; 
-                player.stats.forcefieldDamage = 10 + player.upgrades.forcefield * 8; // Increased base damage and scaling (CHANGED)
-                player.stats.forcefieldRadius = 70 + player.upgrades.forcefield * 15; // Increased base radius and scaling (CHANGED)
+                player.stats.forcefieldDamage = 10 + player.upgrades.forcefield * 8;
+                player.stats.forcefieldRadius = 70 + player.upgrades.forcefield * 15;
                 player.stats.damageReduction = Math.min(0.8, player.stats.damageReduction + 0.02); 
                 player.forcefieldTimer = 0; 
                 player.forcefieldHitEnemies.clear(); 
               },
-              next: () => `Creates a forcefield (Radius: ${70 + (player.upgrades.forcefield + 1) * 15}, Damage: ${10 + (player.upgrades.forcefield + 1) * 8}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`, // Updated description
+              next: () => `Creates a forcefield (Radius: ${70 + (player.upgrades.forcefield + 1) * 15}, Damage: ${10 + (player.upgrades.forcefield + 1) * 8}). Also increases damage reduction. (Lvl ${player.upgrades.forcefield + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['johnny', 'dixie'] 
             },
             { id: 'dogPack', name: 'Dog Pack', description: 'Summon an additional loyal dog ally.',
@@ -1022,13 +1185,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             },
             { id: 'dogStrength', name: 'Dog Strength', description: 'Increases the damage of your dog allies.',
               level: () => player.upgrades.dogStrength,
-              effect: () => { allyDogs.forEach(dog => dog.damage += 5); }, // Removed player.upgrades.dogStrength++ as it's not needed here
+              effect: () => { allyDogs.forEach(dog => dog.damage += 5); },
               next: () => `Increase dog melee damage by 5. (Lvl ${player.upgrades.dogStrength + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
             { id: 'dogSpeed', name: 'Dog Speed', description: 'Increases the movement speed of your dog allies.',
               level: () => player.upgrades.dogSpeed,
-              effect: () => { allyDogs.forEach(dog => dog.speed += 20); }, // Removed player.upgrades.dogSpeed++ as it's not needed here
+              effect: () => { allyDogs.forEach(dog => dog.speed += 20); },
               next: () => `Increase dog movement speed by 20. (Lvl ${player.upgrades.dogSpeed + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['dixie'] 
             },
@@ -1084,10 +1247,10 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             let dx = c1.x - c2.x;
             let dy = c1.y - c2.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
-            let minDistance = c1.size / 2 + c2.size / 2; // c2.size is diameter for pillar, so c2.size/2 is radius
+            let minDistance = c1.size / 2 + c2.size / 2;
 
             if (distance < minDistance) {
-                if (distance === 0) { // Objects are exactly on top of each other, push randomly to prevent infinite loop
+                if (distance === 0) {
                     c1.x += Math.random() * 0.1 - 0.05;
                     c1.y += Math.random() * 0.1 - 0.05;
                     return true;
@@ -1096,13 +1259,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 let normalX = dx / distance;
                 let normalY = dy / distance;
 
-                // Push c1 out of c2
                 c1.x += normalX * overlap;
                 c1.y += normalY * overlap;
 
-                // Slide along the surface (project velocity onto tangent)
                 let dotProduct = c1.vx * normalX + c1.vy * normalY;
-                if (dotProduct < 0) { // Only if moving towards the obstacle
+                if (dotProduct < 0) {
                     c1.vx -= dotProduct * normalX;
                     c1.vy -= dotProduct * normalY;
                 }
@@ -1113,7 +1274,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
         // Resolves collision between a circle and a rectangle (e.g., player/enemy and desk/chair)
         function circleRectCollideAndResolve(circle, rect) {
-            // Find the closest point on the rectangle to the center of the circle
             let closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
             let closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
 
@@ -1123,9 +1283,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             let radius = circle.size / 2;
 
             if (distanceSquared < radius * radius) {
-                let distance = Math.sqrt(distanceSquared); // Define distance here
-                if (distance === 0) { // Circle center is inside rectangle
-                    // Push out along the axis with least penetration
+                let distance = Math.sqrt(distanceSquared);
+                if (distance === 0) {
                     let overlapX = Math.min(Math.abs(circle.x - rect.x), Math.abs((rect.x + rect.width) - circle.x));
                     let overlapY = Math.min(Math.abs(circle.y - rect.y), Math.abs((rect.y + rect.height) - circle.y));
 
@@ -1139,13 +1298,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     let normalX = dx / distance;
                     let normalY = dy / distance;
 
-                    // Push circle out of rectangle
                     circle.x += normalX * overlap;
                     circle.y += normalY * overlap;
 
-                    // Slide along the surface
                     let dotProduct = circle.vx * normalX + circle.vy * normalY;
-                    if (dotProduct < 0) { // Only if moving into the obstacle
+                    if (dotProduct < 0) {
                         circle.vx -= dotProduct * normalX;
                         circle.vy -= dotProduct * normalY;
                     }
@@ -1182,7 +1339,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
         }
 
         function setupAudio() {
-            // Ensure Tone.js is started (audio context is active)
             Tone.start();
             Tone.Transport.bpm.value = 120;
 
@@ -1233,7 +1389,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
         
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Apply camera zoom to the context
             ctx.save();
             ctx.scale(camera.zoom, camera.zoom);
             
@@ -1251,15 +1406,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (ultimateActive) {
                 drawUltimateEffect();
             }
-            // Draw Forcefield
             if (player.stats.forcefieldActive) {
                 drawForcefield();
             }
-            // Draw Acid Aura
             if (player.upgrades.acidAura > 0) {
                 drawAcidAura();
             }
-            // Draw Leash Whip
             if (player.leashWhipActive) {
                 drawLeashWhip();
             }
@@ -1284,20 +1436,20 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             let gridColor;
 
             if (currentLevelId === 'hotel_lobby') {
-                bgColor = '#101010'; // Dark grey for hotel lobby
+                bgColor = '#101010';
                 gridColor = '#222222';
             } else if (currentLevelId === 'the_park') {
-                bgColor = '#225522'; // Green for park
+                bgColor = '#225522';
                 gridColor = '#336633';
             } else if (currentLevelId === 'desert_oasis') { 
-                bgColor = '#C2B280'; // Sandy beige
-                gridColor = '#B09F6E'; // Slightly darker sand for grid
-            } else if (currentLevelId === 'factory_realm') { // New factory level
-                bgColor = '#2C3E50'; // Dark blue-grey for factory
-                gridColor = '#34495E'; // Slightly lighter blue-grey for grid
+                bgColor = '#C2B280';
+                gridColor = '#B09F6E';
+            } else if (currentLevelId === 'factory_realm') {
+                bgColor = '#2C3E50';
+                gridColor = '#34495E';
             }
             else {
-                bgColor = '#101010'; // Default
+                bgColor = '#101010';
                 gridColor = '#222222';
             }
 
@@ -1327,21 +1479,19 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     ctx.beginPath();
                     ctx.arc(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width / 2, 0, Math.PI * 2);
                     ctx.fill();
-                    // Draw cactus spikes (simplified)
                     if (obstacle.type === 'cactus') {
-                        ctx.fillStyle = '#6B8E23'; // Darker green for spikes
+                        ctx.fillStyle = '#6B8E23';
                         ctx.fillRect(obstacle.x - camera.x - obstacle.width * 0.4, obstacle.y - camera.y - obstacle.width * 0.4, obstacle.width * 0.1, obstacle.width * 0.1);
                         ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.3, obstacle.y - camera.y - obstacle.width * 0.3, obstacle.width * 0.1, obstacle.width * 0.1);
                         ctx.fillRect(obstacle.x - camera.x - obstacle.width * 0.2, obstacle.y - camera.y + obstacle.width * 0.3, obstacle.width * 0.1, obstacle.width * 0.1);
                     }
                 } else if (obstacle.type === 'desk' || obstacle.type === 'chair' || obstacle.type === 'bush' || obstacle.type === 'bench' || obstacle.type === 'old_car') { 
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
-                     // Draw car details (simplified)
                     if (obstacle.type === 'old_car') {
-                        ctx.fillStyle = '#36454F'; // Dark grey for windows
+                        ctx.fillStyle = '#36454F';
                         ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.2, obstacle.y - camera.y + obstacle.height * 0.2, obstacle.width * 0.2, obstacle.height * 0.6);
                         ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.6, obstacle.y - camera.y + obstacle.height * 0.2, obstacle.width * 0.2, obstacle.height * 0.6);
-                        ctx.fillStyle = '#111111'; // Black for tires
+                        ctx.fillStyle = '#111111';
                         ctx.beginPath();
                         ctx.arc(obstacle.x - camera.x + obstacle.width * 0.15, obstacle.y - camera.y + obstacle.height * 0.9, obstacle.width * 0.08, 0, Math.PI * 2);
                         ctx.fill();
@@ -1351,28 +1501,27 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     }
                 } else if (obstacle.type === 'machine') {
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
-                    ctx.fillStyle = '#34495E'; // Darker blue-grey for details
+                    ctx.fillStyle = '#34495E';
                     ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.1, obstacle.y - camera.y + obstacle.height * 0.1, obstacle.width * 0.8, obstacle.height * 0.2);
                     ctx.fillRect(obstacle.x - camera.x + obstacle.width * 0.1, obstacle.y - camera.y + obstacle.height * 0.7, obstacle.width * 0.8, obstacle.height * 0.2);
-                    ctx.fillStyle = '#C0392B'; // Red accent light
+                    ctx.fillStyle = '#C0392B';
                     ctx.beginPath();
                     ctx.arc(obstacle.x - camera.x + obstacle.width * 0.5, obstacle.y - camera.y + obstacle.height * 0.5, 5, 0, Math.PI * 2);
                     ctx.fill();
                 } else if (obstacle.type === 'conveyor_belt') {
-                    ctx.fillStyle = '#7F8C8D'; // Grey for belt
+                    ctx.fillStyle = '#7F8C8D';
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
-                    ctx.strokeStyle = '#2C3E50'; // Dark lines
+                    ctx.strokeStyle = '#2C3E50';
                     ctx.lineWidth = 2;
-                    // Draw conveyor belt lines
                     const lineSpacing = 10;
-                    if (obstacle.width > obstacle.height) { // Horizontal
+                    if (obstacle.width > obstacle.height) {
                         for (let i = 0; i < obstacle.width; i += lineSpacing) {
                             ctx.beginPath();
                             ctx.moveTo(obstacle.x - camera.x + i, obstacle.y - camera.y);
                             ctx.lineTo(obstacle.x - camera.x + i, obstacle.y - camera.y + obstacle.height);
                             ctx.stroke();
                         }
-                    } else { // Vertical
+                    } else {
                         for (let i = 0; i < obstacle.height; i += lineSpacing) {
                             ctx.beginPath();
                             ctx.moveTo(obstacle.x - camera.x, obstacle.y - camera.y + i);
@@ -1381,9 +1530,9 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         }
                     }
                 } else if (obstacle.type === 'pipe') {
-                    ctx.fillStyle = '#95A5A6'; // Light grey for pipe
+                    ctx.fillStyle = '#95A5A6';
                     ctx.fillRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
-                    ctx.strokeStyle = '#34495E'; // Dark outlines
+                    ctx.strokeStyle = '#34495E';
                     ctx.lineWidth = 2;
                     ctx.strokeRect(obstacle.x - camera.x, obstacle.y - camera.y, obstacle.width, obstacle.height);
                 }
@@ -1394,12 +1543,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             const s = size;
             const screenX = x - camera.x;
             const screenY = y - camera.y;
-            const currentCharacter = player.character || 'johnny'; // Assuming player.character holds 'johnny' or 'dixie'
+            const currentCharacter = player.character || 'johnny';
 
             if (spriteName === 'player') {
-                // If player is invincible, flash
                 if (player.invincible && player.isFlashing) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; // White flash
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
                     ctx.beginPath();
                     ctx.arc(screenX, screenY, s * 1.2, 0, Math.PI * 2);
                     ctx.fill();
@@ -1420,15 +1568,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     ctx.fillRect(screenX - s/4, screenY + s + legOffset, s/4, s); 
                     ctx.fillRect(screenX + s/4, screenY + s - legOffset, s/4, s); 
                 } else {
-                    // Acrobatic idle poses
                     ctx.fillStyle = player.color; 
                     if (currentCharacter === 'johnny') {
-                        // Johnny's idle pose: one leg slightly bent, ready stance
-                        const idleOffset = Math.sin(survivalTime * 2) * s * 0.05; // Subtle bob
+                        const idleOffset = Math.sin(survivalTime * 2) * s * 0.05;
                         ctx.fillRect(screenX - s/4, screenY + s + idleOffset, s/4, s); 
                         ctx.fillRect(screenX + s/4, screenY + s - idleOffset, s/4, s); 
                     } else {
-                        // Default static pose
                         ctx.fillRect(screenX - s/4, screenY + s, s/4, s); 
                         ctx.fillRect(screenX + s/4, screenY + s, s/4, s); 
                     }
@@ -1440,7 +1585,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 let shoulderXOffset = s * 0.4; 
                 let shoulderYOffset = s * 0.5; 
 
-                // Character specific arm adjustments
                 if (currentCharacter === 'dixie') {
                     armLength = s * 1.5; 
                     armWidth = s * 0.2; 
@@ -1450,56 +1594,48 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
                 ctx.fillStyle = player.color; 
 
-                // Draw guns on the ends of arms for Johnny's pistol or Dixie's Uzis if active
-                if ((currentCharacter === 'johnny') || (currentCharacter === 'dixie' && player.stats.dualUziActive)) { // Modified condition for Johnny
+                if ((currentCharacter === 'johnny') || (currentCharacter === 'dixie' && player.stats.dualUziActive)) {
                     const gunSize = s * 0.4;
                     const gunBarrelLength = s * 0.6;
                     const armBaseOffset = s * 0.2; 
-                    const currentArmLength = (currentCharacter === 'johnny' ? s * 0.8 : s * 1.5); // Use Johnny's arm length for his gun
+                    const currentArmLength = (currentCharacter === 'johnny' ? s * 0.8 : s * 1.5);
 
-                    // Calculate arm end points for guns
                     const armAngle = player.currentShootAngle;
                     
-                    // Determine number of guns and their offsets
                     let gunOffsets = [];
                     if (currentCharacter === 'johnny') {
-                        gunOffsets.push(0); // Single gun for Johnny
+                        gunOffsets.push(0);
                     } else if (currentCharacter === 'dixie' && player.stats.dualUziActive) {
-                        gunOffsets.push(-armBaseOffset); // Left Uzi
-                        gunOffsets.push(armBaseOffset);  // Right Uzi
+                        gunOffsets.push(-armBaseOffset);
+                        gunOffsets.push(armBaseOffset);
                     }
 
                     gunOffsets.forEach(offset => {
                         const armEndX = screenX + Math.cos(armAngle + Math.PI/2) * offset + Math.cos(armAngle) * currentArmLength;
                         const armEndY = screenY + Math.sin(armAngle + Math.PI/2) * offset + Math.sin(armAngle) * currentArmLength;
 
-                        // Draw Arm (simple rect from shoulder to gun)
                         ctx.save();
                         ctx.translate(screenX + Math.cos(armAngle + Math.PI/2) * offset, screenY + Math.sin(armAngle + Math.PI/2) * offset);
                         ctx.rotate(armAngle);
                         ctx.fillRect(0, -armWidth / 2, currentArmLength, armWidth);
                         ctx.restore();
 
-                        // Draw Gun
                         ctx.save();
                         ctx.translate(armEndX, armEndY);
                         ctx.rotate(armAngle);
-                        ctx.fillStyle = '#444'; // Gun color
-                        ctx.fillRect(0, -gunSize/4, gunBarrelLength, gunSize/2); // Barrel
-                        ctx.fillRect(-gunSize/2, -gunSize/2, gunSize, gunSize); // Body of gun
+                        ctx.fillStyle = '#444';
+                        ctx.fillRect(0, -gunSize/4, gunBarrelLength, gunSize/2);
+                        ctx.fillRect(-gunSize/2, -gunSize/2, gunSize, gunSize);
                         ctx.restore();
                     });
 
                 } else {
-                    // Default arms if no guns are drawn (e.g., Dixie without Dual Uzis)
-                    // Left Arm
                     ctx.save();
                     ctx.translate(screenX - shoulderXOffset, screenY - shoulderYOffset);
                     ctx.rotate(player.currentShootAngle);
                     ctx.fillRect(0, -armWidth / 2, armLength, armWidth);
                     ctx.restore();
 
-                    // Right Arm
                     ctx.save();
                     ctx.translate(screenX + shoulderXOffset, screenY - shoulderYOffset);
                     ctx.rotate(player.currentShootAngle);
@@ -1518,7 +1654,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             const screenX = enemy.x - camera.x;
             const screenY = enemy.y - camera.y;
 
-            // Draw glowing green aura for allied characters
             if (enemy.controlled) {
                 ctx.save(); 
                 ctx.shadowColor = 'rgba(0, 255, 102, 0.8)'; 
@@ -1635,7 +1770,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 }
             }
 
-            // Draw "A" above allied characters
             if (enemy.controlled) {
                 ctx.fillStyle = '#00ff66'; 
                 ctx.font = 'bold 16px Chakra Petch'; 
@@ -1645,7 +1779,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             }
         }
 
-        // Function to draw dog pixel art (for both ally and enemy dogs)
         function drawDogPixelArt(ctx, dog, screenX, screenY, s) {
             ctx.fillStyle = dog.color; 
             ctx.beginPath();
@@ -1710,15 +1843,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             });
         }
 
-        // Function to draw a bone-shaped projectile
         function drawBoneProjectile(ctx, x, y, size) {
-            ctx.fillStyle = '#D2B48C'; // Bone color
+            ctx.fillStyle = '#D2B48C';
             ctx.beginPath();
-            // Main body of the bone (rectangle)
             ctx.ellipse(x, y, size * 1.5, size * 0.5, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Ends of the bone (circles)
             ctx.beginPath();
             ctx.arc(x - size * 1.5, y, size * 0.7, 0, Math.PI * 2);
             ctx.fill();
@@ -1732,14 +1862,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 const screenX = p.x - camera.x;
                 const screenY = p.y - camera.y;
                 
-                if (p.color === '#D2B48C') { // If it's a bone projectile
+                if (p.color === '#D2B48C') {
                     drawBoneProjectile(ctx, screenX, screenY, p.size);
                 } else if (p.type === 'knife') {
-                    // Draw a knife shape
                     ctx.fillStyle = p.color;
                     ctx.save();
                     ctx.translate(screenX, screenY);
-                    ctx.rotate(Math.atan2(p.vy, p.vx)); // Orient knife with its direction
+                    ctx.rotate(Math.atan2(p.vy, p.vx));
                     ctx.beginPath();
                     ctx.moveTo(-p.size, -p.size / 4);
                     ctx.lineTo(p.size, 0);
@@ -1748,15 +1877,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     ctx.fill();
                     ctx.restore();
                 } else if (p.type === 'sword') {
-                    // Draw a sword shape
                     ctx.fillStyle = p.color;
                     ctx.save();
                     ctx.translate(screenX, screenY);
-                    ctx.rotate(Math.atan2(p.vy, p.vx)); // Orient sword with its direction
-                    // Blade
+                    ctx.rotate(Math.atan2(p.vy, p.vx));
                     ctx.fillRect(-p.size * 1.5, -p.size / 4, p.size * 3, p.size / 2);
-                    // Hilt
-                    ctx.fillStyle = '#8B4513'; // Brown hilt
+                    ctx.fillStyle = '#8B4513';
                     ctx.fillRect(-p.size * 1.8, -p.size / 2, p.size * 0.5, p.size);
                     ctx.restore();
                 }
@@ -1928,7 +2054,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             ctx.fillRect(0, 0, canvas.width / camera.zoom, canvas.height / camera.zoom); 
         }
 
-        // Draw Forcefield
         function drawForcefield() {
             const screenX = player.x - camera.x;
             const screenY = player.y - camera.y;
@@ -1945,69 +2070,60 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             ctx.fill();
         }
 
-        // New: Draw Acid Aura effect
         function drawAcidAura() {
             const screenX = player.x - camera.x;
             const screenY = player.y - camera.y;
-            const currentRadius = player.stats.acidAuraRadius * (1 + 0.1 * Math.sin(player.acidAuraTimer * 10)); // Pulsating effect
-            const rotationSpeed = 2; // radians per second
+            const currentRadius = player.stats.acidAuraRadius * (1 + 0.1 * Math.sin(player.acidAuraTimer * 10));
+            const rotationSpeed = 2;
             const startAngle = player.acidAuraAngle;
-            const endAngle = player.acidAuraAngle + Math.PI; // Semi-circle for visual
+            const endAngle = player.acidAuraAngle + Math.PI;
             
             ctx.beginPath();
             ctx.arc(screenX, screenY, currentRadius, startAngle, endAngle);
-            ctx.lineTo(screenX, screenY); // Close the semi-circle to form a "pac-man" shape
+            ctx.lineTo(screenX, screenY);
             ctx.closePath();
-            ctx.fillStyle = `rgba(0, 255, 0, ${0.3 + 0.2 * Math.sin(player.acidAuraTimer * 5)})`; // Green with pulsating alpha
+            ctx.fillStyle = `rgba(0, 255, 0, ${0.3 + 0.2 * Math.sin(player.acidAuraTimer * 5)})`;
             ctx.fill();
 
-            // Draw a thin outer glow
             ctx.strokeStyle = `rgba(0, 255, 0, ${0.6 + 0.2 * Math.sin(player.acidAuraTimer * 5)})`;
             ctx.lineWidth = 2;
             ctx.stroke();
         }
 
-        // New: Draw Leash Whip effect
         function drawLeashWhip() {
             const screenX = player.x - camera.x;
             const screenY = player.y - camera.y;
 
-            // Determine whip length based on upgrade level
-            const baseWhipLength = 150; // Base length in pixels (approx 10 meters)
-            const whipLengthPerLevel = 20; // Additional length per level
+            const baseWhipLength = 150;
+            const whipLengthPerLevel = 20;
             const currentWhipLength = baseWhipLength + player.upgrades.leashWhip * whipLengthPerLevel;
 
-            // Target direction for the whip
-            let whipAngle = player.currentShootAngle; // Default to player's shoot angle
+            let whipAngle = player.currentShootAngle;
             const closestEnemy = findClosestEnemy();
             if (closestEnemy) {
-                // Point whip towards the closest enemy
                 whipAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
             }
 
             const endX = screenX + Math.cos(whipAngle) * currentWhipLength;
             const endY = screenY + Math.sin(whipAngle) * currentWhipLength;
 
-            // Animate the whip appearance/disappearance
-            const opacity = player.leashWhipAnimationTimer / 0.2; // Fade out over 0.2 seconds
-            const lineWidth = 5 + player.upgrades.leashWhip; // Thicker whip with levels
+            const opacity = player.leashWhipAnimationTimer / 0.2;
+            const lineWidth = 5 + player.upgrades.leashWhip;
 
             ctx.beginPath();
             ctx.moveTo(screenX, screenY);
-            // Add a slight curve to the whip for visual appeal
             const midX = screenX + Math.cos(whipAngle + Math.PI/4) * currentWhipLength / 2;
             const midY = screenY + Math.sin(whipAngle + Math.PI/4) * currentWhipLength / 2;
             ctx.quadraticCurveTo(midX, midY, endX, endY);
             
-            ctx.strokeStyle = `rgba(139, 69, 19, ${opacity})`; // Brownish color for the whip
+            ctx.strokeStyle = `rgba(139, 69, 19, ${opacity})`;
             ctx.lineWidth = lineWidth;
-            ctx.lineCap = 'round'; // Rounded ends for the whip
+            ctx.lineCap = 'round';
             ctx.stroke();
 
-            // Add a small glowing tip at the end of the whip
             ctx.beginPath();
             ctx.arc(endX, endY, lineWidth * 0.8, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 223, 0, ${opacity})`; // Gold/yellow glow
+            ctx.fillStyle = `rgba(255, 223, 0, ${opacity})`;
             ctx.fill();
         }
 
@@ -2125,7 +2241,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             miniMapCtx.arc(miniPlayerX, miniPlayerY, player.size / 2 * miniMapScale, 0, Math.PI * 2);
             miniMapCtx.fill();
 
-            // Draw chests as larger icons on the mini-map
             chests.forEach(chest => {
                 const miniX = chest.x * miniMapScale;
                 const miniY = chest.y * miniMapScale;
@@ -2134,7 +2249,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 miniMapCtx.fillRect(miniX - chestMiniSize / 2, miniY - chestMiniSize / 2, chestMiniSize, chestMiniSize);
             });
 
-            // Draw hearts on the mini-map
             powerups.forEach(p => {
                 if (p.type === 'heart') {
                     const miniX = p.x * miniMapScale;
@@ -2186,7 +2300,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             populateLevelOptions();
         }
 
-        // Show Character Select Menu
         function showCharacterSelectMenu() {
             startMenu.style.display = 'none';
             gameOverMenu.style.display = 'none';
@@ -2199,17 +2312,16 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
         function populateLevelOptions() {
             levelOptionsDiv.innerHTML = ''; 
 
-            // --- FIX: Load latest scores every time the menu is opened ---
             const highestHotelLobbyScore = window.loadUserLevelScoreLocally('hotel_lobby');
             const highestTheParkScore = window.loadUserLevelScoreLocally('the_park');
             const highestCasablancaScore = window.loadUserLevelScoreLocally('desert_oasis');
-            const highestFactoryScore = window.loadUserLevelScoreLocally('factory_realm'); // New factory level score
+            const highestFactoryScore = window.loadUserLevelScoreLocally('factory_realm');
 
             const levels = [
                 { id: 'hotel_lobby', name: 'Hotel Lobby', unlockScore: 0, description: 'The classic battleground.' },
                 { id: 'the_park', name: 'The Park', unlockScore: 0, description: 'A green oasis, full of danger.' },
                 { id: 'desert_oasis', name: 'Casablanca', unlockScore: 5000, description: 'A scorching landscape with hidden dangers.' }, 
-                { id: 'factory_realm', name: 'Realm of the Forgotten Factory', unlockScore: 10000, description: 'A desolate factory, full of menacing machines.' } // New level
+                { id: 'factory_realm', name: 'Realm of the Forgotten Factory', unlockScore: 10000, description: 'A desolate factory, full of menacing machines.' }
             ];
 
             levels.forEach(level => {
@@ -2219,7 +2331,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
                 let isLocked = false;
                 
-                // Unlock logic for Casablanca (formerly Desert Oasis)
                 if (level.id === 'desert_oasis' && level.unlockScore > 0) {
                     const maxScore = Math.max(highestHotelLobbyScore, highestTheParkScore, highestCasablancaScore, highestFactoryScore); 
                     if (maxScore < level.unlockScore) {
@@ -2230,7 +2341,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         unlockInfo.textContent = `Unlock: ${level.unlockScore} Score in Any Level (Your Best: ${maxScore})`;
                         card.appendChild(unlockInfo);
                     }
-                } else if (level.id === 'factory_realm' && level.unlockScore > 0) { // Unlock logic for new factory level
+                } else if (level.id === 'factory_realm' && level.unlockScore > 0) {
                     const maxScore = Math.max(highestHotelLobbyScore, highestTheParkScore, highestCasablancaScore, highestFactoryScore);
                     if (maxScore < level.unlockScore) {
                         isLocked = true;
@@ -2256,18 +2367,16 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             const effectiveDt = dt * gameSpeedMultiplier; 
 
             if (autoPlayActive) {
-                // Auto-play logic
                 let targetX = player.x;
                 let targetY = player.y;
                 let desiredMovementX = 0;
                 let desiredMovementY = 0;
 
-                const dangerRadius = 200; // Radius to react to enemies
-                const escapeSpeedMultiplier = 1.5; // Move faster when escaping
-                const approachSpeedMultiplier = 1; // Normal speed when approaching
+                const dangerRadius = 200;
+                const escapeSpeedMultiplier = 1.5;
+                const approachSpeedMultiplier = 1;
                 let currentSpeed = player.speed;
 
-                // 1. Avoid immediate threats (enemies)
                 let closestEnemy = null;
                 let minEnemyDistance = Infinity;
                 enemies.forEach(enemy => {
@@ -2279,13 +2388,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 });
 
                 if (closestEnemy && minEnemyDistance < dangerRadius) {
-                    // Move away from closest enemy
                     const angleAway = Math.atan2(player.y - closestEnemy.y, player.x - closestEnemy.x);
                     desiredMovementX = Math.cos(angleAway);
                     desiredMovementY = Math.sin(angleAway);
                     currentSpeed *= escapeSpeedMultiplier;
                 } else {
-                    // 2. Prioritize collecting hearts if low health
                     let closestHeart = null;
                     let minHeartDistance = Infinity;
                     powerups.forEach(p => {
@@ -2298,13 +2405,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         }
                     });
 
-                    if (player.health < player.maxHealth * 0.5 && closestHeart) { // If health is below 50% and heart is available
+                    if (player.health < player.maxHealth * 0.5 && closestHeart) {
                         const angleToHeart = Math.atan2(closestHeart.y - player.y, closestHeart.x - player.x);
                         desiredMovementX = Math.cos(angleToHeart);
                         desiredMovementY = Math.sin(angleToHeart);
                         currentSpeed *= approachSpeedMultiplier;
                     } else {
-                        // 3. Collect XP/chests
                         let closestPickup = null;
                         let minPickupDistance = Infinity;
                         [...powerups.filter(p => p.type === 'xp'), ...chests].forEach(p => {
@@ -2321,28 +2427,35 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                             desiredMovementY = Math.sin(angleToPickup);
                             currentSpeed *= approachSpeedMultiplier;
                         } else {
-                            // 4. If nothing else, just move randomly or stay put
                             desiredMovementX = Math.random() * 2 - 1;
                             desiredMovementY = Math.random() * 2 - 1;
                         }
                     }
                 }
 
-                // Apply movement
                 player.vx = desiredMovementX * currentSpeed;
                 player.vy = desiredMovementY * currentSpeed;
 
-                // Adjust target for drawing purposes (not used for movement directly in autoplay)
                 player.targetX = player.x + player.vx;
                 player.targetY = player.y + player.vy;
 
             } else {
-                // Manual play logic
-                const dx = player.targetX - player.x;
-                const dy = player.targetY - player.y;
+                // Manual play logic (with joystick input if active)
+                let dx = 0;
+                let dy = 0;
+
+                if (movementInput.x !== 0 || movementInput.y !== 0) {
+                    dx = movementInput.x;
+                    dy = movementInput.y;
+                } else {
+                    dx = player.targetX - player.x;
+                    dy = player.targetY - player.y;
+                }
+                
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                player.isMoving = distance > 5;
+                player.isMoving = distance > 5 || movementInput.x !== 0 || movementInput.y !== 0;
+
                 if (player.isMoving) {
                     const angle = Math.atan2(dy, dx);
                     const currentSpeed = player.speed * (ultimateActive ? playerSpeedModifier : 1);
@@ -2367,7 +2480,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             };
             
             obstacles.forEach(obstacle => {
-                if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus' || obstacle.type === 'machine' || obstacle.type === 'conveyor_belt' || obstacle.type === 'pipe') { // Added new obstacle types
+                if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus' || obstacle.type === 'machine' || obstacle.type === 'conveyor_belt' || obstacle.type === 'pipe') {
                     let obstacleCircle = {
                         x: obstacle.x,
                         y: obstacle.y,
@@ -2396,20 +2509,19 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.health += player.stats.healthRegen * effectiveDt;
             player.health = Math.min(player.health + player.stats.healthRegen * effectiveDt, player.maxHealth);
 
-            // Update player flash and invincibility
             if (player.invincible) {
                 player.invincibilityTimer -= effectiveDt;
                 player.flashTimer += effectiveDt;
 
-                if (player.flashTimer >= 0.1) { // Flash every 0.1 seconds
+                if (player.flashTimer >= 0.1) {
                     player.isFlashing = !player.isFlashing;
                     player.flashTimer = 0;
                 }
 
                 if (player.invincibilityTimer <= 0) {
                     player.invincible = false;
-                    player.isFlashing = false; // Ensure flashing stops
-                    player.color = player.baseColor; // Restore original color
+                    player.isFlashing = false;
+                    player.color = player.baseColor;
                 }
             }
         
@@ -2442,21 +2554,27 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 }
             }
         
+            // Determine player shoot angle for Johnny's pistol or other directed attacks
+            let shootAngle = 0;
+            const closestEnemy = findClosestEnemy();
+            if (closestEnemy) {
+                shootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+            } else if (attackInput.x !== 0 || attackInput.y !== 0) {
+                shootAngle = Math.atan2(attackInput.y, attackInput.x);
+            }
+
+            player.currentShootAngle = shootAngle; // Update player's visual facing direction
+
             // Johnny's default attack (pistol)
             if (currentCharacter === 'johnny' && shootTimer >= 1 / player.stats.attackSpeed) {
-                const closestEnemy = findClosestEnemy();
-                
-                if (closestEnemy) {
-                    const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                    player.currentShootAngle = angle; 
-                    
+                if (closestEnemy || attackInput.x !== 0 || attackInput.y !== 0) {
                     let currentMultiShot = player.stats.multiShot;
                     let currentProjectileSpeed = player.stats.projectileSpeed;
                     let currentDamage = player.stats.damage;
 
                     for (let i = 0; i < currentMultiShot; i++) {
                         const spread = (i - (currentMultiShot - 1) / 2) * 0.1; 
-                        const projectileAngle = angle + spread;
+                        const projectileAngle = shootAngle + spread;
                         
                         projectiles.push({
                             x: player.x,
@@ -2480,9 +2598,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             }
 
             if (player.stats.burstDamage > 0 && player.burstTimer >= player.burstCooldown) {
-                const closestEnemy = findClosestEnemy();
-                if (closestEnemy) {
-                    player.currentShootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x); 
+                if (closestEnemy || attackInput.x !== 0 || attackInput.y !== 0) {
+                    player.currentShootAngle = shootAngle;
                 }
                 const numProjectiles = player.stats.burstProjectileCount;
                 const angleStep = (Math.PI * 2) / numProjectiles;
@@ -2511,13 +2628,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 player.shotgunTimer += effectiveDt;
                 const shotgunCooldown = 0.8 / (1 + player.upgrades.shotgun * 0.1); 
                 if (player.shotgunTimer >= shotgunCooldown) {
-                    const closestEnemy = findClosestEnemy();
-                    if (closestEnemy && dist(player, closestEnemy) < 200) { 
-                        const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                        player.currentShootAngle = angle; 
+                    if (closestEnemy && dist(player, closestEnemy) < 200 || attackInput.x !== 0 || attackInput.y !== 0) { 
+                        player.currentShootAngle = shootAngle; 
                         for (let i = 0; i < player.stats.shotgunPellets; i++) {
                             const spread = (i - (player.stats.shotgunPellets - 1) / 2) * player.stats.shotgunSpread;
-                            const projectileAngle = angle + spread;
+                            const projectileAngle = shootAngle + spread;
                             projectiles.push({
                                 x: player.x,
                                 y: player.y,
@@ -2543,19 +2658,16 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 player.dualUziTimer += effectiveDt;
                 const uziCooldown = 1 / player.stats.dualUziFireRate;
                 if (player.dualUziTimer >= uziCooldown) {
-                    const closestEnemy = findClosestEnemy();
-                    if (closestEnemy) {
-                        const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
-                        player.currentShootAngle = angle; 
-                        // Adjusted projectile spawn points to be at the end of the longer arms
-                        const armBaseOffset = player.size * 0.2; // Offset from player body center to arm base
-                        const armLengthOffset = player.size * 1.5; // Dixie's arm length
+                    if (closestEnemy || attackInput.x !== 0 || attackInput.y !== 0) {
+                        player.currentShootAngle = shootAngle;
+                        const armBaseOffset = player.size * 0.2;
+                        const armLengthOffset = player.size * 1.5;
 
                         projectiles.push({
-                            x: player.x + Math.cos(angle - Math.PI/2) * armBaseOffset + Math.cos(angle) * armLengthOffset,
-                            y: player.y + Math.sin(angle - Math.PI/2) * armBaseOffset + Math.sin(angle) * armLengthOffset,
-                            vx: Math.cos(angle) * 600,
-                            vy: Math.sin(angle) * 600,
+                            x: player.x + Math.cos(shootAngle - Math.PI/2) * armBaseOffset + Math.cos(shootAngle) * armLengthOffset,
+                            y: player.y + Math.sin(shootAngle - Math.PI/2) * armBaseOffset + Math.sin(shootAngle) * armLengthOffset,
+                            vx: Math.cos(shootAngle) * 600,
+                            vy: Math.sin(shootAngle) * 600,
                             size: 2,
                             damage: player.stats.dualUziDamage,
                             color: '#00FF00', 
@@ -2563,10 +2675,10 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                             hits: 0
                         });
                         projectiles.push({
-                            x: player.x + Math.cos(angle + Math.PI/2) * armBaseOffset + Math.cos(angle) * armLengthOffset,
-                            y: player.y + Math.sin(angle + Math.PI/2) * armBaseOffset + Math.sin(angle) * armLengthOffset,
-                            vx: Math.cos(angle) * 600,
-                            vy: Math.sin(angle) * 600,
+                            x: player.x + Math.cos(shootAngle + Math.PI/2) * armBaseOffset + Math.cos(shootAngle) * armLengthOffset,
+                            y: player.y + Math.sin(shootAngle + Math.PI/2) * armBaseOffset + Math.sin(shootAngle) * armLengthOffset,
+                            vx: Math.cos(shootAngle) * 600,
+                            vy: Math.sin(shootAngle) * 600,
                             size: 2,
                             damage: player.stats.dualUziDamage,
                             color: '#00FF00', 
@@ -2585,9 +2697,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (player.stats.boomerangCount > 0) {
                 player.boomerangTimer += effectiveDt;
                 if (player.boomerangTimer >= player.stats.boomerangCooldown) {
-                    const closestEnemy = findClosestEnemy(); 
-                    if (closestEnemy) {
-                        player.currentShootAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x); 
+                    if (closestEnemy || attackInput.x !== 0 || attackInput.y !== 0) {
+                        player.currentShootAngle = shootAngle;
                     }
                     const numBoomerangs = player.stats.boomerangCount;
                     const angleStep = (Math.PI * 2) / numBoomerangs; 
@@ -2616,18 +2727,16 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) {
                 player.leashWhipTimer += effectiveDt;
                 if (player.leashWhipTimer >= player.leashWhipCooldown) {
-                    // Determine where the whip effect should extend to
-                    let targetX = player.x + Math.cos(player.currentShootAngle) * (150 + player.upgrades.leashWhip * 20); // Base 150px + 20px per level
+                    let targetX = player.x + Math.cos(player.currentShootAngle) * (150 + player.upgrades.leashWhip * 20);
                     let targetY = player.y + Math.sin(player.currentShootAngle) * (150 + player.upgrades.leashWhip * 20);
 
                     const enemiesInWhipRange = enemies.filter(enemy => 
-                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 100 + (player.upgrades.leashWhip * 10) + enemy.size / 2) // Range increases with level
+                        !enemy.controlled && dist(player, enemy) < (player.size / 2 + 100 + (player.upgrades.leashWhip * 10) + enemy.size / 2)
                     );
                     if (enemiesInWhipRange.length > 0) {
-                        // If there are enemies in range, snap whip to closest one
-                        const closestEnemy = enemiesInWhipRange.sort((a,b) => dist(player,a) - dist(player,b))[0];
-                        player.leashWhipTargetX = closestEnemy.x;
-                        player.leashWhipTargetY = closestEnemy.y;
+                        const closestEnemyInWhip = enemiesInWhipRange.sort((a,b) => dist(player,a) - dist(player,b))[0];
+                        player.leashWhipTargetX = closestEnemyInWhip.x;
+                        player.leashWhipTargetY = closestEnemyInWhip.y;
                         
                         enemiesInWhipRange.forEach(enemy => {
                             const damageDealt = player.stats.leashWhipDamage;
@@ -2642,12 +2751,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         });
                         playSound('playerShot'); 
                     } else {
-                        // If no enemies in range, whip in current shoot direction
                         player.leashWhipTargetX = targetX;
                         player.leashWhipTargetY = targetY;
                     }
-                    player.leashWhipActive = true; // Activate visual
-                    player.leashWhipAnimationTimer = 0.2; // Set animation duration
+                    player.leashWhipActive = true;
+                    player.leashWhipAnimationTimer = 0.2;
                     player.leashWhipTimer = 0;
                 }
             }
@@ -2656,23 +2764,21 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (player.upgrades.knifeThrow > 0) {
                 player.knifeThrowTimer += effectiveDt;
                 if (player.knifeThrowTimer >= player.stats.knifeCooldown) {
-                    const closestEnemy = findClosestEnemy();
-                    if (closestEnemy) {
-                        const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                    if (closestEnemy || attackInput.x !== 0 || attackInput.y !== 0) {
                         for (let i = 0; i < player.stats.knifeCount; i++) {
-                            const spread = (i - (player.stats.knifeCount - 1) / 2) * 0.1; // Small spread for multiple knives
-                            const projectileAngle = angle + spread;
+                            const spread = (i - (player.stats.knifeCount - 1) / 2) * 0.1;
+                            const projectileAngle = shootAngle + spread;
                             projectiles.push({
                                 x: player.x,
                                 y: player.y,
-                                vx: Math.cos(projectileAngle) * 500, // Fixed speed for knives
+                                vx: Math.cos(projectileAngle) * 500,
                                 vy: Math.sin(projectileAngle) * 500,
                                 size: 8,
                                 damage: ultimateActive ? player.stats.knifeDamage * 3 : player.stats.knifeDamage,
-                                color: '#A9A9A9', // Dark gray for knife
-                                pierce: 0, // Knives don't pierce by default
+                                color: '#A9A9A9',
+                                pierce: 0,
                                 hits: 0,
-                                type: 'knife' // New type for drawing
+                                type: 'knife'
                             });
                         }
                         playSound('playerShot');
@@ -2685,20 +2791,18 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (currentCharacter === 'dixie' && player.upgrades.swordThrow > 0) {
                 player.swordThrowTimer += effectiveDt;
                 if (player.swordThrowTimer >= player.stats.swordCooldown) {
-                    const closestEnemy = findClosestEnemy();
-                    if (closestEnemy) {
-                        const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                    if (closestEnemy || attackInput.x !== 0 || attackInput.y !== 0) {
                         projectiles.push({
                             x: player.x,
                             y: player.y,
-                            vx: Math.cos(angle) * 600, // Fixed speed for swords
-                            vy: Math.sin(angle) * 600,
+                            vx: Math.cos(shootAngle) * 600,
+                            vy: Math.sin(shootAngle) * 600,
                             size: 12,
                             damage: ultimateActive ? player.stats.swordDamage * 3 : player.stats.swordDamage,
-                            color: '#ADD8E6', // Light blue for sword
+                            color: '#ADD8E6',
                             pierce: ultimateActive ? player.stats.swordPierce + 1 : player.stats.swordPierce,
                             hits: 0,
-                            type: 'sword' // New type for drawing
+                            type: 'sword'
                         });
                         playSound('playerShot');
                         player.swordThrowTimer = 0;
@@ -2709,11 +2813,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             // Acid Aura Logic
             if (player.upgrades.acidAura > 0) {
                 player.acidAuraTimer += effectiveDt;
-                player.acidAuraAngle = (player.acidAuraAngle + effectiveDt * 2) % (Math.PI * 2); // Rotate aura
+                player.acidAuraAngle = (player.acidAuraAngle + effectiveDt * 2) % (Math.PI * 2);
                 if (player.acidAuraTimer >= player.stats.acidAuraInterval) {
                     enemies.forEach(enemy => {
                         if (!enemy.controlled && dist(player, enemy) < player.stats.acidAuraRadius + enemy.size / 2) {
-                            if (!player.acidAuraHitEnemies.has(enemy)) { // Ensure enemy is only hit once per pulse
+                            if (!player.acidAuraHitEnemies.has(enemy)) {
                                 const damageDealt = player.stats.acidAuraDamage;
                                 enemy.health -= damageDealt;
                                 ultimateCharge += ultimateChargePerHit;
@@ -2722,13 +2826,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                                     playSound('enemyHit');
                                     lastEnemyHitSoundTime = survivalTime;
                                 }
-                                spawnParticles(enemy.x, enemy.y, {r: 0, g: 255, b: 0}); // Green particles for acid
+                                spawnParticles(enemy.x, enemy.y, {r: 0, g: 255, b: 0});
                                 player.acidAuraHitEnemies.add(enemy);
                             }
                         }
                     });
                     player.acidAuraTimer = 0;
-                    player.acidAuraHitEnemies.clear(); // Clear hit enemies for the next pulse
+                    player.acidAuraHitEnemies.clear();
                 }
             }
         }
@@ -2753,7 +2857,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (currentCharacter === 'johnny') { 
                 player.color = '#ff6600'; 
             } else if (currentCharacter === 'dixie') {
-                player.color = player.baseColor; // Dixie remains pink
+                player.color = player.baseColor;
             }
             ultimateCharge = 0;
             playSound('ultimateActivate');
@@ -2801,7 +2905,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 let enemyType = 'basic';
                 const timeInMinutes = survivalTime / 60;
 
-                // New logic for spawning 'enforcer' every 5 minutes
                 if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { 
                     enemyType = 'enforcer';
                 } else if (timeInMinutes < 0.5) { 
@@ -3019,7 +3122,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
                 if (!enemy.ghostModeActive) {
                     obstacles.forEach(obstacle => {
-                        if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus' || obstacle.type === 'machine' || obstacle.type === 'conveyor_belt' || obstacle.type === 'pipe') { // Added new obstacle types
+                        if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus' || obstacle.type === 'machine' || obstacle.type === 'conveyor_belt' || obstacle.type === 'pipe') {
                             let obstacleCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
                             circleCircleCollideAndResolve(tempEnemy, obstacleCircle);
                         } else {
@@ -3168,7 +3271,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             const leashRadius = DOG_LEASH_RADIUS; 
             const attackRadius = 400; 
 
-            // Create a set of enemies already targeted by other dogs in this frame
             const targetedEnemies = new Set();
             allyDogs.forEach(dog => {
                 if (dog.currentTarget) {
@@ -3182,9 +3284,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 let closestEnemyInAttackRange = null;
                 let minDistanceToEnemy = Infinity;
 
-                // Find the closest untargeted enemy within attack range
                 enemies.forEach(enemy => {
-                    if (!enemy.controlled && !targetedEnemies.has(enemy)) { // Ensure enemy is not controlled and not already targeted
+                    if (!enemy.controlled && !targetedEnemies.has(enemy)) {
                         const distToEnemy = dist(dog, enemy);
                         if (distToEnemy < attackRadius && distToEnemy < minDistanceToEnemy) {
                             minDistanceToEnemy = distToEnemy;
@@ -3193,26 +3294,21 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     }
                 });
 
-                // If only one enemy on screen and it's already targeted, allow this dog to target it too.
-                // This prevents dogs from doing nothing if there's only one enemy left and another dog has it.
                 if (!closestEnemyInAttackRange && enemies.filter(e => !e.controlled).length === 1) {
                     closestEnemyInAttackRange = enemies.find(e => !e.controlled);
                 }
                 
-                dog.currentTarget = closestEnemyInAttackRange; // Store the current target
+                dog.currentTarget = closestEnemyInAttackRange;
 
                 if (closestEnemyInAttackRange) {
-                    // Move towards the closest enemy
                     const angleToEnemy = Math.atan2(closestEnemyInAttackRange.y - dog.y, closestEnemyInAttackRange.x - dog.x);
                     intendedVx = Math.cos(angleToEnemy) * dog.speed;
                     intendedVy = Math.sin(angleToEnemy) * dog.speed;
                 } else {
-                    // Orbit the player if no enemies in range
                     dog.orbitAngle = (dog.orbitAngle + effectiveDt * 0.8) % (Math.PI * 2); 
                     const targetX = player.x + Math.cos(dog.orbitAngle) * dog.orbitRadius;
                     const targetY = player.y + Math.sin(dog.orbitAngle) * dog.orbitRadius;
 
-                    // Move towards the target orbit position
                     const dx = targetX - dog.x;
                     const dy = targetY - dog.y;
                     const distToOrbit = Math.sqrt(dx * dx + dy * dy);
@@ -3223,11 +3319,9 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     }
                 }
 
-                // Store current position for stuck detection
                 const prevX = dog.x;
                 const prevY = dog.y;
 
-                // Temporary object for collision resolution with intended velocity
                 let tempDog = {
                     x: dog.x + intendedVx * effectiveDt, 
                     y: dog.y + intendedVy * effectiveDt, 
@@ -3238,7 +3332,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 
                 if (!dog.ghostModeActive) {
                     obstacles.forEach(obstacle => {
-                        if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus' || obstacle.type === 'machine' || obstacle.type === 'conveyor_belt' || obstacle.type === 'pipe') { // Added new obstacle types
+                        if (obstacle.type === 'pillar' || obstacle.type === 'tree' || obstacle.type === 'cactus' || obstacle.type === 'machine' || obstacle.type === 'conveyor_belt' || obstacle.type === 'pipe') {
                             let obstacleCircle = { x: obstacle.x, y: obstacle.y, size: obstacle.width };
                             circleCircleCollideAndResolve(tempDog, obstacleCircle);
                         } else {
@@ -3252,15 +3346,14 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 dog.vx = tempDog.vx; 
                 dog.vy = tempDog.vy;
 
-                // Stuck detection and ghost mode for dogs
                 const movedDistance = dist({x: prevX, y: prevY}, {x: dog.x, y: dog.y});
                 const stuckThreshold = 1; 
 
                 if (movedDistance < stuckThreshold) {
                     dog.stuckTimer += effectiveDt;
-                    if (dog.stuckTimer >= 1 && !dog.ghostModeActive) { // Shorter stuck time for dogs (1 second)
+                    if (dog.stuckTimer >= 1 && !dog.ghostModeActive) {
                         dog.ghostModeActive = true;
-                        dog.ghostModeTimer = 0.5; // Shorter ghost mode for dogs (0.5 seconds)
+                        dog.ghostModeTimer = 0.5;
                         dog.stuckTimer = 0; 
                         console.log(`Ally dog entered ghost mode!`);
                     }
@@ -3277,7 +3370,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     }
                 }
 
-                // Dog melee attack
                 if (closestEnemyInAttackRange && dist(dog, closestEnemyInAttackRange) < (dog.size / 2 + closestEnemyInAttackRange.size / 2) && (survivalTime - dog.lastAttackTime >= dog.attackCooldown)) {
                     closestEnemyInAttackRange.health -= dog.damage;
                     showDamageNumber(dog.damage, closestEnemyInAttackRange.x, closestEnemyInAttackRange.y);
@@ -3288,7 +3380,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     dog.lastAttackTime = survivalTime; 
                 }
 
-                // Dog shooting bones (Dixie's specific upgrade)
                 if (currentCharacter === 'dixie' && player.upgrades.dogBones > 0 && closestEnemyInAttackRange) {
                     dog.shootTimer += effectiveDt;
                     if (dog.shootTimer >= 1 / dog.attackSpeed) {
@@ -3300,7 +3391,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                             vy: Math.sin(angleToEnemy) * dogProjectileSpeed,
                             size: 8, 
                             damage: dogProjectileDamage,
-                            color: '#D2B48C', // Bone color
+                            color: '#D2B48C',
                             pierce: 0,
                             hits: 0
                         });
@@ -3311,24 +3402,20 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             });
         }
 
-        // Function to add a single dog ally
         function addAllyDog() {
             const numDogs = allyDogs.length + 1;
-            const baseOrbitRadius = DOG_LEASH_RADIUS; // Base distance from player (now uses the constant)
-            const orbitSpread = 20; // How much each dog's radius varies
-            const initialAngleOffset = Math.random() * Math.PI * 2; // Random starting angle for the first dog
+            const baseOrbitRadius = DOG_LEASH_RADIUS;
+            const orbitSpread = 20;
+            const initialAngleOffset = Math.random() * Math.PI * 2;
 
-            // Recalculate positions for all dogs (existing + new) to ensure even spread
             for (let i = 0; i < numDogs; i++) {
                 const angle = initialAngleOffset + (Math.PI * 2 / numDogs) * i;
-                const radius = baseOrbitRadius + (i % 2) * orbitSpread; // Alternate radius for spreading
+                const radius = baseOrbitRadius + (i % 2) * orbitSpread;
                 
                 if (i < allyDogs.length) {
-                    // Update existing dog's orbit properties
                     allyDogs[i].orbitAngle = angle;
                     allyDogs[i].orbitRadius = radius;
                 } else {
-                    // Add new dog
                     allyDogs.push({
                         x: player.x + Math.cos(angle) * radius, 
                         y: player.y + Math.sin(angle) * radius,
@@ -3340,14 +3427,14 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         attackCooldown: 0.5,
                         shootTimer: 0, 
                         attackSpeed: 1,
-                        orbitAngle: angle,        // New: Store orbit angle
-                        orbitRadius: radius,       // New: Store orbit radius
-                        vx: 0, // Initialize vx
-                        vy: 0, // Initialize vy
-                        stuckTimer: 0, // New: for stuck detection
-                        ghostModeActive: false, // New: for temporary ghost mode
-                        ghostModeTimer: 0, // New: duration of ghost mode
-                        currentTarget: null // New: to track which enemy this dog is targeting
+                        orbitAngle: angle,
+                        orbitRadius: radius,
+                        vx: 0,
+                        vy: 0,
+                        stuckTimer: 0,
+                        ghostModeActive: false,
+                        ghostModeTimer: 0,
+                        currentTarget: null
                     });
                 }
             }
@@ -3444,7 +3531,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     if (dist(player, enemy) < (player.size / 2 + enemy.size / 2) && 
                         (enemy.type === 'basic' || enemy.type === 'tank' || enemy.type === 'car' || enemy.type === 'ninja' || enemy.type === 'enemyDog' || enemy.type === 'cobra' || enemy.type === 'yellowSkull' || enemy.type === 'enforcer')) { 
                         
-                        // Apply damage only if not invincible
                         if (!player.invincible) {
                             let damageTaken = enemy.damage;
                             damageTaken = damageTaken * (1 - player.stats.damageReduction);
@@ -3455,12 +3541,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                             damageTaken = Math.max(0, damageTaken); 
                             player.health -= damageTaken;
                             
-                            // Activate invincibility frames
                             player.invincible = true;
-                            player.invincibilityTimer = 0.5; // 0.5 seconds of invincibility
-                            player.flashTimer = 0; // Reset flash timer
-                            player.isFlashing = true; // Start flashing immediately
-                            player.color = 'rgba(255,255,255,0.7)'; // Flash white
+                            player.invincibilityTimer = 0.5;
+                            player.flashTimer = 0;
+                            player.isFlashing = true;
+                            player.color = 'rgba(255,255,255,0.7)';
 
                             if (player.health <= 0) {
                                 gameOver();
@@ -3490,7 +3575,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         enemy.health -= damageDealt;
                         ultimateCharge += ultimateChargePerHit;
                         showDamageNumber(damageDealt, enemy.x, enemy.y);
-                        // Add particle effect for knife hits
                         if (p.type === 'knife' || p.type === 'sword') {
                             spawnParticles(enemy.x, enemy.y, {r: 200, g: 200, b: 200}); 
                         } else {
@@ -3515,7 +3599,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
                 const p = enemyProjectiles[i];
                 if (dist(player, p) < (player.size / 2 + p.size / 2)) { 
-                    // Apply damage only if not invincible
                     if (!player.invincible) {
                         let damageTaken = p.damage;
                         damageTaken = damageTaken * (1 - player.stats.damageReduction);
@@ -3526,12 +3609,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         damageTaken = Math.max(0, damageTaken); 
                         player.health -= damageTaken;
 
-                        // Activate invincibility frames
                         player.invincible = true;
                         player.invincibilityTimer = 0.5; 
                         player.flashTimer = 0;
                         player.isFlashing = true;
-                        player.color = 'rgba(255,255,255,0.7)'; // Flash white
+                        player.color = 'rgba(255,255,255,0.7)';
 
                         if (player.health <= 0) {
                             gameOver();
@@ -3540,7 +3622,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
                     if (p.isAoE) {
                         enemies.forEach(otherEnemy => {
-                            // Ensure the AoE only damages hostile enemies that are not the source of the projectile
                             if (otherEnemy !== p.sourceEnemy && !otherEnemy.controlled && dist(p, otherEnemy) < p.aoeRadius + otherEnemy.size / 2) {
                                 otherEnemy.health -= p.damage * 0.5; 
                                 showDamageNumber(p.damage * 0.5, otherEnemy.x, otherEnemy.y);
@@ -3632,9 +3713,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     gainXp(enemy.xp);
                     score += 10;
                     spawnParticles(enemy.x, enemy.y, enemy.color);
-                    // Always spawn powerup (coin) when enemy dies
                     spawnPowerup(enemy.x, enemy.y, 'xp'); 
-                    // Guaranteed treasure drop for 'enforcer'
                     if (enemy.type === 'enforcer') {
                         spawnChestAtLocation(enemy.x, enemy.y);
                     }
@@ -3680,7 +3759,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 let enemyType = 'basic';
                 const timeInMinutes = survivalTime / 60;
 
-                // New logic for spawning 'enforcer' every 5 minutes
                 if (timeInMinutes >= 5 && Math.floor(timeInMinutes) % 5 === 0 && Math.random() < 0.1) { 
                     enemyType = 'enforcer';
                 } else if (timeInMinutes < 0.5) { 
@@ -3896,7 +3974,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             spawnParticles(drone.x, drone.y, {r: 255, g: 100, b: 0}); 
 
             if (dist(player, drone) < (player.size / 2 + drone.explosionRadius)) {
-                // Apply damage only if not invincible
                 if (!player.invincible) {
                     let damageTaken = drone.damage;
                     damageTaken = damageTaken * (1 - player.stats.damageReduction);
@@ -3906,12 +3983,11 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     damageTaken = Math.max(0, damageTaken); 
                     player.health -= damageTaken;
 
-                    // Activate invincibility frames
                     player.invincible = true;
                     player.invincibilityTimer = 0.5; 
                     player.flashTimer = 0;
                     player.isFlashing = true;
-                    player.color = 'rgba(255,255,255,0.7)'; // Flash white
+                    player.color = 'rgba(255,255,255,0.7)';
 
                     if (player.health <= 0) {
                         gameOver();
@@ -3959,7 +4035,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             const powerupChoices = ['nuke', 'xpSuck', 'levelUp'];
             const chosenPowerup = powerupChoices[Math.floor(Math.random() * powerupChoices.length)];
             
-            playSound('explosion'); // Play a sound for opening the chest
+            playSound('explosion');
 
             switch (chosenPowerup) {
                 case 'nuke':
@@ -3971,14 +4047,13 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     console.log("Chest Powerup: XP Suck!");
                     break;
                 case 'levelUp':
-                    gainXp(player.nextLevelXp); // Give enough XP for a guaranteed level up
+                    gainXp(player.nextLevelXp);
                     console.log("Chest Powerup: Instant Level Up!");
                     break;
             }
         }
 
         function applyInstantMagnetEffect() {
-            // Iterate backwards to safely remove items while looping
             for (let i = powerups.length - 1; i >= 0; i--) {
                 const p = powerups[i];
                 if (p.type === 'xp') {
@@ -3989,18 +4064,16 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
         }
 
         function killAllEnemiesEffect() {
-            // Trigger a visual screen flash
             screenFlash.active = true;
-            screenFlash.duration = 0.5; // 0.5 seconds flash
+            screenFlash.duration = 0.5;
             screenFlash.alpha = 0.7;
 
-            // Damage and clear all enemies
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
-                score += 10; // Give score for the kill
-                spawnParticles(enemy.x, enemy.y, enemy.color); // Death particle effect
+                score += 10;
+                spawnParticles(enemy.x, enemy.y, enemy.color);
             }
-            enemies.length = 0; // Remove all enemies from the game
+            enemies.length = 0;
         }
 
         // --- END: Chest Powerup Functions ---
@@ -4033,30 +4106,25 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             console.log("[Show Power] showPowerSelection called.");
         
             const numOptions = 4; 
-            // Filter powers based on current character
             const availablePowers = POWER_OPTIONS.filter(p => 
                 p.level() < MAX_UPGRADE_LEVEL && p.characters.includes(currentCharacter)
             ); 
             
-            // For auto-play, select based on a simple priority
             if (autoPlayActive) {
                 let bestPower = null;
-                // Prioritize health if low
                 if (player.health < player.maxHealth * 0.5) {
                     bestPower = availablePowers.find(p => p.id === 'health');
                 }
-                // Then prioritize damage, shotgun, acid aura, or leash whip
                 if (!bestPower) {
                     bestPower = availablePowers.find(p => p.id === 'damage' || p.id === 'shotgun' || p.id === 'acidAura' || p.id === 'leashWhip');
                 }
-                // Otherwise, just pick the first available or a random one
                 if (!bestPower && availablePowers.length > 0) {
                     bestPower = availablePowers[0];
                 }
 
                 if (bestPower) {
                     selectPower(bestPower);
-                    return; // Exit as power is auto-selected
+                    return;
                 }
             }
 
@@ -4112,7 +4180,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             particles = []; 
             spinningKnives = []; 
             chests = []; 
-            allyDogs = []; // Ensure dogs are cleared on full game reset
+            allyDogs = [];
             drones = []; 
             boomerangs = []; 
             levelUpQueue = []; 
@@ -4129,7 +4197,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             bulletTimeDuration = 0; 
             lastUziSoundTime = 0;
 
-            // Reset forcefield specific stats
             player.stats.forcefieldActive = false;
             player.stats.forcefieldDamage = 0;
             player.stats.forcefieldRadius = 0;
@@ -4138,38 +4205,36 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.stats.leashWhipDamage = 0; 
             player.leashWhipCooldown = 0;    
             player.leashWhipTimer = 0;       
-            player.leashWhipActive = false; // Reset leash whip visual state
-            player.leashWhipAnimationTimer = 0; // Reset leash whip animation timer
-            player.leashWhipTargetX = 0; // Reset leash whip target
-            player.leashWhipTargetY = 0; // Reset leash whip target
+            player.leashWhipActive = false;
+            player.leashWhipAnimationTimer = 0;
+            player.leashWhipTargetX = 0;
+            player.leashWhipTargetY = 0;
 
             dogProjectileDamage = 0; 
             dogProjectileSpeed = 0;  
 
-            // Reset new stats/upgrades
             player.stats.knifeDamage = 0;
             player.stats.knifeCount = 0;
             player.stats.knifeCooldown = 1.5;
             player.stats.swordDamage = 0;
             player.stats.swordPierce = 0;
             player.stats.swordCooldown = 3;
-            player.stats.acidAuraDamage = 0; // Reset Acid Aura damage
-            player.stats.acidAuraInterval = 0; // Reset Acid Aura interval
-            player.stats.acidAuraRadius = 0; // Reset Acid Aura radius
+            player.stats.acidAuraDamage = 0;
+            player.stats.acidAuraInterval = 0;
+            player.stats.acidAuraRadius = 0;
 
 
             player.upgrades.knifeThrow = 0;
             player.upgrades.swordThrow = 0;
-            player.upgrades.acidAura = 0; // Reset Acid Aura upgrade level
+            player.upgrades.acidAura = 0;
 
 
             player.knifeThrowTimer = 0;
             player.swordThrowTimer = 0;
-            player.acidAuraTimer = 0; // Reset Acid Aura timer
-            player.acidAuraAngle = 0; // Reset Acid Aura angle
-            player.acidAuraHitEnemies.clear(); // Clear Acid Aura hit enemies
+            player.acidAuraTimer = 0;
+            player.acidAuraAngle = 0;
+            player.acidAuraHitEnemies.clear();
 
-            // Reset player invincibility state
             player.invincible = false;
             player.invincibilityTimer = 0;
             player.flashTimer = 0;
@@ -4185,7 +4250,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             gameRunning = false;
             isPaused = false;
             isMenuOpen = false;
-            // No Tone.Transport.stop() for music as music is removed.
             showStartMenu();
         }
 
@@ -4220,7 +4284,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
             if (screenFlash.active) {
                 screenFlash.duration -= dt;
-                screenFlash.alpha = (screenFlash.duration / 0.5) * 0.7; // Fade out effect
+                screenFlash.alpha = (screenFlash.duration / 0.5) * 0.7;
                 if (screenFlash.duration <= 0) {
                     screenFlash.active = false;
                 }
@@ -4235,7 +4299,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 randomChestSpawnTimer = 0;
             }
 
-            // New heart spawn logic
             if (survivalTime >= HEART_SPAWN_START_TIME && randomHeartSpawnTimer >= HEART_SPAWN_INTERVAL) {
                 if (Math.random() < HEART_SPAWN_CHANCE) {
                     const x = Math.random() * gameWorld.width;
@@ -4264,21 +4327,21 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             if (currentCharacter === 'dixie' && player.upgrades.leashWhip > 0) { 
                 player.leashWhipTimer += effectiveDt;
             }
-            if (player.leashWhipActive) { // Update leash whip animation timer
+            if (player.leashWhipActive) {
                 player.leashWhipAnimationTimer -= effectiveDt;
                 if (player.leashWhipAnimationTimer <= 0) {
                     player.leashWhipActive = false;
                 }
             }
-            if (player.upgrades.knifeThrow > 0) { // New: Update knife throw timer
+            if (player.upgrades.knifeThrow > 0) {
                 player.knifeThrowTimer += effectiveDt;
             }
-            if (player.upgrades.swordThrow > 0) { // New: Update sword throw timer
+            if (player.upgrades.swordThrow > 0) {
                 player.swordThrowTimer += effectiveDt;
             }
-            if (player.upgrades.acidAura > 0) { // New: Update Acid Aura timer
+            if (player.upgrades.acidAura > 0) {
                 player.acidAuraTimer += effectiveDt;
-                player.acidAuraAngle = (player.acidAuraAngle + effectiveDt * 2) % (Math.PI * 2); // Rotate aura
+                player.acidAuraAngle = (player.acidAuraAngle + effectiveDt * 2) % (Math.PI * 2);
             }
 
 
@@ -4288,7 +4351,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 knife.y = player.y + Math.sin(knife.angle) * knife.radius;
             });
 
-            // Forcefield damage application
             if (player.stats.forcefieldActive) {
                 player.forcefieldTimer += effectiveDt;
                 const forcefieldTickInterval = 0.5; 
@@ -4347,10 +4409,8 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             isPaused = true; 
             playSound('gameOver');
             
-            // No Tone.Transport.stop() for music as music is removed.
-            player.color = player.baseColor; // Restore player color on game over
+            player.color = player.baseColor;
 
-            // Save user's personal best score for the current level
             if (window.saveUserLevelScoreLocally) {
                 window.saveUserLevelScoreLocally(currentLevelId, score);
             }
@@ -4368,7 +4428,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 playerNameInput.value = '';
                 playerNameInput.focus();
             } else {
-                displayHighScores('high-scores-list'); // Display high scores on game over menu
+                displayHighScores('high-scores-list');
             }
         }
 
@@ -4380,7 +4440,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     window.saveHighScoreLocally(playerName, score, survivalTime.toFixed(1), player.level, currentLevelId);
                 }
                 highScoreModal.style.display = 'none';
-                displayHighScores('high-scores-list'); // Display high scores on game over menu
+                displayHighScores('high-scores-list');
             } else {
                 console.warn("Please enter a name to save your high score.");
             }
@@ -4405,7 +4465,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
             highScores.forEach((s, index) => {
                 const li = document.createElement('li');
-                const levelName = s.levelId === 'hotel_lobby' ? 'Hotel' : (s.levelId === 'the_park' ? 'Park' : (s.levelId === 'desert_oasis' ? 'Casablanca' : 'Factory')); // Updated level name
+                const levelName = s.levelId === 'hotel_lobby' ? 'Hotel' : (s.levelId === 'the_park' ? 'Park' : (s.levelId === 'desert_oasis' ? 'Casablanca' : 'Factory'));
                 li.innerHTML = `
                     <span>${index + 1}. ${s.name}</span>
                     <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${levelName})</span>
@@ -4436,9 +4496,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 requestAnimationFrame(gameLoop); 
             }
         }
-
-        // Removed toggleMusic function as per request.
-        // Removed muteMusicButton event listener from init.
 
         function spawnParticles(x, y, colorInput) {
             let r, g, b;
@@ -4481,41 +4538,62 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             }
         }
         
+        function resizeGame() {
+            const aspectRatio = 900 / 700; // Original game aspect ratio
+            let newWidth, newHeight;
+
+            // Prioritize fitting within the viewport while maintaining aspect ratio
+            if (window.innerWidth / window.innerHeight > aspectRatio) {
+                newHeight = window.innerHeight * 0.95; // Use 95% of viewport height
+                newWidth = newHeight * aspectRatio;
+            } else {
+                newWidth = window.innerWidth * 0.95; // Use 95% of viewport width
+                newHeight = newWidth / aspectRatio;
+            }
+
+            // Set minimum size for usability on very small screens, adjust as needed
+            const minWidth = 300;
+            const minHeight = minWidth / aspectRatio;
+
+            newWidth = Math.max(newWidth, minWidth);
+            newHeight = Math.max(newHeight, minHeight);
+
+
+            gameContainer.style.width = `${newWidth}px`;
+            gameContainer.style.height = `${newHeight}px`;
+
+            // Scale the canvas to match the container
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+
+            // Adjust camera view based on new canvas size and maintain zoom
+            camera.width = newWidth / camera.zoom;
+            camera.height = newHeight / camera.zoom;
+
+            // Adjust mini-map canvas dimensions on resize
+            miniMapCanvas.width = miniMapContainer.clientWidth;
+            miniMapCanvas.height = miniMapContainer.clientHeight;
+            miniMapScale = miniMapCanvas.width / gameWorld.width;
+
+            // Show/hide mobile controls based on screen width
+            if (window.innerWidth < 768) { // Example breakpoint for mobile
+                mobileControls.style.display = 'flex';
+            } else {
+                mobileControls.style.display = 'none';
+            }
+        }
+
         function init() {
-            // Start Tone.js audio context immediately for sound effects only
             Tone.start().then(() => {
                 setupAudio(); 
             }).catch(e => console.error("Error starting Tone.js audio context:", e));
 
+            resizeGame(); // Initial resize on load
 
-            canvas.width = gameContainer.clientWidth;
-            canvas.height = gameContainer.clientHeight;
-            camera.width = canvas.width / camera.zoom;
-            camera.height = canvas.height / camera.zoom;
-
-            // Set mini-map canvas dimensions to match container for square shape
-            miniMapCanvas.width = miniMapContainer.clientWidth;
-            miniMapCanvas.height = miniMapContainer.clientHeight;
-            miniMapScale = miniMapCanvas.width / gameWorld.width; 
-
-            window.addEventListener('resize', () => {
-                canvas.width = gameContainer.clientWidth;
-                canvas.height = gameContainer.clientHeight;
-                camera.width = canvas.width / camera.zoom; 
-                camera.height = canvas.height / camera.zoom; 
-
-                // Adjust mini-map canvas dimensions on resize
-                miniMapCanvas.width = miniMapContainer.clientWidth;
-                miniMapCanvas.height = miniMapContainer.clientHeight;
-                miniMapScale = miniMapCanvas.width / gameWorld.width;
-
-                if (!gameRunning) {
-                    showStartMenu();
-                }
-            });
+            window.addEventListener('resize', resizeGame);
         
             document.getElementById('startButton').addEventListener('click', () => {
-                autoPlayActive = false; // Ensure auto-play is off for manual start
+                autoPlayActive = false;
                 showCharacterSelectMenu(); 
             });
             document.getElementById('restartButton').addEventListener('click', handleRetry);
@@ -4524,15 +4602,12 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
 
             pauseButton.addEventListener('click', togglePause);
             menuButton.addEventListener('click', toggleMenu);
-            // Removed muteMusicButton.addEventListener('click', toggleMusic);
             resumeFromMenuButton.addEventListener('click', toggleMenu); 
 
-            // New level select button and its event listeners
             levelSelectButton.addEventListener('click', showLevelSelectMenu);
             backToMainMenuButton.addEventListener('click', showStartMenu);
             backToMainMenuButtonFromGame.addEventListener('click', backToMainMenu); 
 
-            // Character selection listeners
             document.querySelectorAll('.character-card').forEach(card => {
                 card.addEventListener('click', (e) => {
                     currentCharacter = e.currentTarget.dataset.character;
@@ -4541,19 +4616,19 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             });
             backToStartMenuFromCharSelect.addEventListener('click', showStartMenu);
 
-            // New: Auto-play button listener
             autoPlayButton.addEventListener('click', () => {
                 autoPlayActive = true;
-                currentLevelId = 'hotel_lobby'; // Start auto-play on default level
-                currentCharacter = 'johnny'; // Start auto-play with Johnny
+                currentLevelId = 'hotel_lobby';
+                currentCharacter = 'johnny';
                 startGame();
             });
 
+            // Re-adding passive: false for touch events to prevent scrolling
             canvas.addEventListener('mousedown', handlePointerEvent);
             canvas.addEventListener('touchstart', handlePointerEvent, { passive: false });
             
             function handlePointerEvent(e) {
-                if (autoPlayActive) return; // Disable manual input in auto-play mode
+                if (autoPlayActive || movementJoystickActive || attackJoystickActive) return;
 
                 e.preventDefault();
                 if (!gameRunning || isPaused || isMenuOpen) return; 
@@ -4576,16 +4651,84 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 player.targetY = camera.y + inputY;
             }
 
+            // Joystick event listeners
+            movementJoystickHandle.addEventListener('touchstart', (e) => {
+                movementJoystickActive = true;
+                e.preventDefault(); // Prevent scrolling
+            }, { passive: false });
+            movementJoystickHandle.addEventListener('touchmove', (e) => {
+                if (!movementJoystickActive) return;
+                e.preventDefault(); // Prevent scrolling
+
+                const touch = e.touches[0];
+                const rect = movementJoystickContainer.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                let deltaX = touch.clientX - centerX;
+                let deltaY = touch.clientY - centerY;
+
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > JOYSTICK_MAX_DIST) {
+                    const angle = Math.atan2(deltaY, deltaX);
+                    deltaX = Math.cos(angle) * JOYSTICK_MAX_DIST;
+                    deltaY = Math.sin(angle) * JOYSTICK_MAX_DIST;
+                }
+
+                movementJoystickHandle.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                movementInput.x = deltaX;
+                movementInput.y = deltaY;
+            }, { passive: false });
+            movementJoystickHandle.addEventListener('touchend', () => {
+                movementJoystickActive = false;
+                movementJoystickHandle.style.transform = 'translate(0, 0)';
+                movementInput.x = 0;
+                movementInput.y = 0;
+            });
+
+            attackJoystickHandle.addEventListener('touchstart', (e) => {
+                attackJoystickActive = true;
+                e.preventDefault(); // Prevent scrolling
+            }, { passive: false });
+            attackJoystickHandle.addEventListener('touchmove', (e) => {
+                if (!attackJoystickActive) return;
+                e.preventDefault(); // Prevent scrolling
+
+                const touch = e.touches[0];
+                const rect = attackJoystickContainer.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                let deltaX = touch.clientX - centerX;
+                let deltaY = touch.clientY - centerY;
+
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > JOYSTICK_MAX_DIST) {
+                    const angle = Math.atan2(deltaY, deltaX);
+                    deltaX = Math.cos(angle) * JOYSTICK_MAX_DIST;
+                    deltaY = Math.sin(angle) * JOYSTICK_MAX_DIST;
+                }
+
+                attackJoystickHandle.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                attackInput.x = deltaX;
+                attackInput.y = deltaY;
+            }, { passive: false });
+            attackJoystickHandle.addEventListener('touchend', () => {
+                attackJoystickActive = false;
+                attackJoystickHandle.style.transform = 'translate(0, 0)';
+                attackInput.x = 0;
+                attackInput.y = 0;
+            });
+
+
             ultimateButton.addEventListener('click', () => {
                 if (ultimateCharge >= ultimateMaxCharge && !ultimateActive) {
                     activateUltimate();
                 }
             });
         
-            // Initial obstacle generation based on default level
             generateObstacles();
         
-            // Display high scores on start menu
             displayHighScores('start-menu-high-scores-list');
 
             showStartMenu();
@@ -4625,7 +4768,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     });
                 }
             } else if (currentLevelId === 'the_park') {
-                // Trees (circular, larger)
                 for (let i = 0; i < 25; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4633,7 +4775,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: 70, height: 70, color: '#006400', type: 'tree' 
                     });
                 }
-                // Bushes (rectangular, smaller)
                 for (let i = 0; i < 35; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4641,7 +4782,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: 40, height: 40, color: '#008000', type: 'bush' 
                     });
                 }
-                // Park Benches (rectangular, longer)
                 for (let i = 0; i < 15; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4650,7 +4790,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                     });
                 }
             } else if (currentLevelId === 'desert_oasis') { 
-                // Cactuses (circular)
                 for (let i = 0; i < 20; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4658,7 +4797,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: 60, height: 60, color: '#32CD32', type: 'cactus' 
                     });
                 }
-                // Old Dead Cars (rectangular)
                 for (let i = 0; i < 10; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4666,8 +4804,7 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: 150, height: 60, color: '#696969', type: 'old_car' 
                     });
                 }
-            } else if (currentLevelId === 'factory_realm') { // New factory obstacles
-                // Machines (various rectangular shapes)
+            } else if (currentLevelId === 'factory_realm') {
                 for (let i = 0; i < 15; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4677,7 +4814,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: width, height: height, color: '#5D6D7E', type: 'machine' 
                     });
                 }
-                // Conveyor Belts (long rectangular)
                 for (let i = 0; i < 10; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4688,7 +4824,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                         x: x, y: y, width: width, height: height, color: '#424949', type: 'conveyor_belt' 
                     });
                 }
-                // Pipes (thin rectangular)
                 for (let i = 0; i < 25; i++) {
                     const x = Math.random() * gameWorld.width;
                     const y = Math.random() * gameWorld.height;
@@ -4719,7 +4854,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.vx = 0; 
             player.vy = 0; 
 
-            // Reset player stats and upgrades based on selected character
             player.stats = {
                 damage: 20, attackSpeed: 10, projectileSpeed: 400, pierce: 0, multiShot: 1, 
                 healthRegen: 0.1, magnet: 160, damageReduction: 0, 
@@ -4734,15 +4868,15 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 forcefieldDamage: 0,
                 forcefieldRadius: 0,
                 leashWhipDamage: 0, 
-                knifeDamage: 0, // New: Knife damage
-                knifeCount: 0,  // New: Number of knives thrown
-                knifeCooldown: 1.5, // New: Cooldown for knife throw
-                swordDamage: 0, // New: Sword damage
-                swordPierce: 0, // New: Sword pierce
-                swordCooldown: 3, // New: Cooldown for sword throw
-                acidAuraDamage: 0, // New: Acid Aura damage
-                acidAuraInterval: 0, // New: Acid Aura interval
-                acidAuraRadius: 0, // New: Acid Aura radius
+                knifeDamage: 0,
+                knifeCount: 0,
+                knifeCooldown: 1.5,
+                swordDamage: 0,
+                swordPierce: 0,
+                swordCooldown: 3,
+                acidAuraDamage: 0,
+                acidAuraInterval: 0,
+                acidAuraRadius: 0,
             };
             player.upgrades = {
                 damage: 0, attackSpeed: 0, health: 0, speed: 0, pierce: 0, multiShot: 0, 
@@ -4757,9 +4891,9 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
                 leashWhip: 0,     
                 dogStrength: 0,   
                 dogSpeed: 0,      
-                knifeThrow: 0, // New: Knife Throw upgrade level
-                swordThrow: 0, // New: Sword Throw upgrade level
-                acidAura: 0, // New: Acid Aura upgrade level
+                knifeThrow: 0,
+                swordThrow: 0,
+                acidAura: 0,
             };
             player.burstChargeCooldown = 5; 
             player.burstChargeTimer = 0; 
@@ -4776,39 +4910,37 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             player.forcefieldTimer = 0; 
             player.forcefieldHitEnemies.clear(); 
             player.leashWhipTimer = 0; 
-            player.leashWhipActive = false; // Reset leash whip visual state
-            player.leashWhipAnimationTimer = 0; // Reset leash whip animation timer
-            player.leashWhipTargetX = 0; // Reset leash whip target
-            player.leashWhipTargetY = 0; // Reset leash whip target
-            player.knifeThrowTimer = 0; // New: Reset knife throw timer
-            player.swordThrowTimer = 0; // New: Reset sword throw timer
-            player.acidAuraTimer = 0; // Reset Acid Aura timer
-            player.acidAuraAngle = 0; // Reset Acid Aura angle
-            player.acidAuraHitEnemies.clear(); // Clear Acid Aura hit enemies
+            player.leashWhipActive = false;
+            player.leashWhipAnimationTimer = 0;
+            player.leashWhipTargetX = 0;
+            player.leashWhipTargetY = 0;
+            player.knifeThrowTimer = 0;
+            player.swordThrowTimer = 0;
+            player.acidAuraTimer = 0;
+            player.acidAuraAngle = 0;
+            player.acidAuraHitEnemies.clear();
 
 
             dogProjectileDamage = 0; 
             dogProjectileSpeed = 0;  
 
-            // Character specific initializations
-            player.character = currentCharacter; // Set the current character on the player object
+            player.character = currentCharacter;
             if (currentCharacter === 'johnny') {
                 player.health = 100;
                 player.maxHealth = 100;
                 player.color = '#6A808C'; 
                 player.baseColor = '#6A808C';
-                allyDogs = []; // Ensure dogs are cleared for Johnny
-                // Johnny always has his pistol (default weapon)
+                allyDogs = [];
             } else if (currentCharacter === 'dixie') {
-                player.health = 120; // Increased base health for Dixie
-                player.maxHealth = 120; // Increased max health for Dixie
+                player.health = 120;
+                player.maxHealth = 120;
                 player.color = '#FF69B4'; 
                 player.baseColor = '#FF69B4'; 
-                allyDogs = []; // Clear any existing dogs before adding new ones
-                addAllyDog(); // Dixie starts with 1 dog ally
+                allyDogs = [];
+                addAllyDog();
                 player.stats.dualUziActive = true; 
-                player.stats.dualUziFireRate = 10; // Base dual uzi fire rate (CHANGED)
-                player.stats.dualUziDamage = 4; // Base dual uzi damage (CHANGED)
+                player.stats.dualUziFireRate = 10;
+                player.stats.dualUziDamage = 4;
             }
 
             randomChestSpawnTimer = 0; 
@@ -4849,7 +4981,6 @@ player.stats.spinningKnivesRange = 40 + player.upgrades.spinningKnives * 10;
             levelSelectMenu.style.display = 'none'; 
             characterSelectMenu.style.display = 'none'; 
 
-            // Generate obstacles for the selected level
             generateObstacles();
             
             requestAnimationFrame(gameLoop);
