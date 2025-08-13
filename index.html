@@ -452,7 +452,7 @@
     
 
         /* Responsive font sizes using vw units */
-        @media (max-width: 900px) {
+@media (max-width: 440px) {
             /* #gameContainer width/height set by JS for aspect ratio, max-width/height ensures fit */
             #gameContainer {
                 max-width: 95vw;
@@ -477,7 +477,7 @@
                 bottom: clamp(15px, 4vw, 30px);
             }
             #ultimate-button {
-                bottom: clamp(10px, 3vw, 20px);
+  bottom: clamp(40px, 8vw, 50px);
                 right: clamp(10px, 3vw, 20px);
             }
             #miniMapContainer {
@@ -567,14 +567,14 @@
 <button id="backToMainMenuButtonGameOver">Return to Main Menu</button> </div>
 <div class="menu" id="message-box" style="display: none;">
 <h3 id="message-title">Level Up!</h3>
-<p id="message-text">Choose your power-up:</p>
+<p id="message-text">Choose your power-ups - you pick 2x each time:</p>
 <div id="power-selection"></div>
 </div>
 <div class="menu" id="game-menu" style="display: none;">
-<h1>Game Menu</h1>
-<button class="control-button" id="muteMusicButton">Mute Music</button>
-<button class="control-button" id="resumeFromMenuButton">Resume Game</button>
-<button class="control-button" id="backToMainMenuButtonFromGame">Back to Main Menu</button>
+    <h1>Game Menu</h1>
+    <button class="control-button" id="autoPlayButton">Play for Me</button> <button class="control-button" id="muteMusicButton">Mute Music</button>
+    <button class="control-button" id="resumeFromMenuButton">Resume Game</button>
+    <button class="control-button" id="backToMainMenuButtonFromGame">Back to Main Menu</button>
 </div>
 <div id="high-score-modal" style="display: none;">
 <h3>New High Score!</h3>
@@ -617,7 +617,6 @@
 <!-- New Accessibility Menu -->
 <div class="menu" id="accessibility-menu" style="display: none;">
     <h1>Accessibility Options</h1>
-    <button id="autoPlayButton">Play for Me</button> <!-- Moved here -->
     <button id="backToMainMenuFromAccessibility">Back</button>
 </div>
 
@@ -1037,12 +1036,6 @@
               },
               next: () => `Fires ${5 + (player.upgrades.burstCharge + 1) * 2} projectiles in a wide arc. Cooldown: ${(Math.max(1, 5 - (player.upgrades.burstCharge + 1) * 0.5)).toFixed(1)}s. (Lvl ${player.upgrades.burstCharge + 1}/${MAX_UPGRADE_LEVEL})`,
               characters: ['johnny'] 
-            },
-            { id: 'ultimateRecharge', name: 'Ultimate Recharge Speed', description: 'The ultimate ability recharges faster.',
-              level: () => player.upgrades.ultimateRecharge,
-              effect: () => ultimateChargePerHit += 0.2,
-              next: () => `Ultimate charges faster per hit. (Lvl ${player.upgrades.ultimateRecharge + 1}/${MAX_UPGRADE_LEVEL})`,
-              characters: ['johnny', 'dixie'] 
             },
             { id: 'burstShot', name: 'Multi-shot Burst', description: 'Fires a burst of projectiles in a circle.',
               level: () => player.upgrades.burstShot,
@@ -4144,7 +4137,7 @@
                 const card = document.createElement('div');
                 card.className = 'power-card';
                 card.innerHTML = `
-                    <h4>${power.name} <span>Lvl ${power.level() + 1}</span></h4>
+                    <h3>${power.name} <span>Lvl ${power.level() + 1}</span></h3>
                     <p>${power.next()}</p>
                 `;
                 card.addEventListener('click', () => selectPower(power));
@@ -4650,20 +4643,15 @@
             accessibilityButton.addEventListener('click', showAccessibilityMenu);
             backToMainMenuFromAccessibility.addEventListener('click', showStartMenu);
 
-            // autoPlayButton is now directly in accessibility menu
-            autoPlayButton.addEventListener('click', () => {
-                autoPlayActive = !autoPlayActive; // Toggle autoPlayActive
-                autoPlayButton.textContent = autoPlayActive ? 'Play for Me: ON' : 'Play for Me: OFF';
-                if (autoPlayActive) {
-                    currentLevelId = 'hotel_lobby';
-                    currentCharacter = 'johnny';
-                    startGame();
-                } else {
-                    // If toggled off mid-game, pause or return to menu
-                    // For simplicity, we'll just allow it to be toggled off.
-                    // If the user wants to go back to manual control, they'd typically restart.
-                }
-            });
+            // autoPlayButton is now directly in pause menu
+autoPlayButton.addEventListener('click', () => {
+    autoPlayActive = true;
+    gameMenu.style.display = 'none';
+    isPaused = false;
+    isMenuOpen = false;
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+});
 
 
             // Re-adding passive: false for touch events to prevent scrolling
