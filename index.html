@@ -96,11 +96,13 @@
             margin-bottom: 5px;
         }
         
-        #time-display {
-            position: static;
-            margin-bottom: 5px;
-            display: block;
-        }
+#time-display {
+    position: static;
+    margin-bottom: 5px;
+    display: block;
+    min-width: 80px; /* Adjust this value if needed */
+    text-align: left;
+}
         
         #level-display {
             position: static;
@@ -356,34 +358,48 @@
             box-shadow: 0 5px 10px rgba(0, 255, 255, 0.4);
         }
 
-        #high-scores-list, #start-menu-high-scores-list {
-            list-style: none;
-            padding: 0;
-            margin-top: 20px; /* Scaled by responsive CSS */
-            max-height: 200px; /* Scaled by responsive CSS */
-            overflow-y: auto;
-            text-align: left;
-            border: 1px solid #333;
-            border-radius: 5px;
-            padding: 10px; /* Scaled by responsive CSS */
-            background-color: rgba(0, 0, 0, 0.5);
-            font-size: 0.6em; /* Scaled by responsive CSS */
-        }
+.high-scores-header, #high-scores-list li, #start-menu-high-scores-list li {
+    display: grid;
+    grid-template-columns: 3fr 1fr 1fr 1fr; /* Defines four columns */
+    gap: 20px; /* Adds space between columns */
+    padding: 8px 15px; /* Adds padding for spacing */
+    align-items: center;
+}
 
-        #high-scores-list li, #start-menu-high-scores-list li {
-            padding: 5px 0;
-            border-bottom: 1px dashed #222;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #high-scores-list li:last-child, #start-menu-high-scores-list li:last-child {
-            border-bottom: none;
-        }
-        #high-scores-list li span, #start-menu-high-scores-list li span {
-            color: #00ffff;
-            font-weight: bold;
-        }
+.high-scores-header {
+    background-color: rgba(0, 255, 255, 0.1); /* Light blue background for the header */
+    border: 1px solid #00ffff;
+    border-bottom: none;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    font-weight: bold;
+    color: #00ffff; /* Brighter color for visibility */
+    text-align: left;
+}
+
+#high-scores-list, #start-menu-high-scores-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border-bottom: 1px solid #333;
+    border-left: 1px solid #333;
+    border-right: 1px solid #333;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    background-color: rgba(0, 0, 0, 0.5);
+    font-size: 0.8em;
+}
+
+#high-scores-list li, #start-menu-high-scores-list li {
+    border-bottom: 1px dashed #222;
+    text-align: left;
+}
+
+#high-scores-list li:last-child, #start-menu-high-scores-list li:last-child {
+    border-bottom: none;
+}
 
         /* Level Select Menu Styles */
         .level-card {
@@ -562,6 +578,12 @@
 <h2 id="final-level">Level Reached: 1</h2>
 <h3>High Scores</h3>
 <ul id="high-scores-list">
+<div class="high-scores-header">
+  <span>Name</span>
+  <span>Score</span>
+  <span>Level</span>
+  <span>Time</span>
+</div>
 </ul>
 <button id="restartButton">Restart Game</button>
 <button id="backToMainMenuButtonGameOver">Return to Main Menu</button> </div>
@@ -572,7 +594,7 @@
 </div>
 <div class="menu" id="game-menu" style="display: none;">
     <h1>Game Menu</h1>
-    <button class="control-button" id="autoPlayButton">Play for Me</button> <button class="control-button" id="muteMusicButton">Mute Music</button>
+    <button class="control-button" id="autoPlayButton">Play for Me</button> <button class="control-button" id="muteMusicButton">Mute Sound Effects</button>
     <button class="control-button" id="resumeFromMenuButton">Resume Game</button>
     <button class="control-button" id="backToMainMenuButtonFromGame">Back to Main Menu</button>
 </div>
@@ -806,8 +828,8 @@
             targetX: initialPlayerX,
             targetY: initialPlayerY,
             size: 20,
-            color: '#6A808C', 
-            baseColor: '#6A808C', 
+            color: '#5C6E7F', 
+            baseColor: '#5C6E7F', 
             speed: 300, 
             health: 100,
             maxHealth: 100,
@@ -943,7 +965,7 @@
 
         // Resolution settings
         const RESOLUTIONS = {
-            'mobile': { id: 'mobile', name: '9:21 (Mobile)', aspectRatio: 9 / 21, defaultWidth: 400, defaultHeight: 933 }, 
+            'mobile': { id: 'mobile', name: '9:21 (Mobile)', aspectRatio: 9 / 21, defaultWidth: 500, defaultHeight: 933 }, 
             'folding': { id: 'folding', name: '5:4 (Folding)', aspectRatio: 5 / 4, defaultWidth: 800, defaultHeight: 640 },
             'monitor': { id: 'monitor', name: '16:9 (Monitor)', aspectRatio: 16 / 9, defaultWidth: 900, defaultHeight: 700 }
         };
@@ -4442,34 +4464,25 @@
             }
         }
 
-        function displayHighScores(targetElementId) {
-            const highScores = window.getHighScoresLocally();
-            const targetList = document.getElementById(targetElementId);
-            if (!targetList) {
-                console.error(`Target element with ID ${targetElementId} not found.`);
-                return;
-            }
-            targetList.innerHTML = '';
-            console.log(`[Display High Scores for ${targetElementId}] High scores to display:`, highScores);
-            
-            if (highScores.length === 0) {
-                const li = document.createElement('li');
-                li.textContent = 'No high scores yet. Be the first!';
-                targetList.appendChild(li);
-                return;
-            }
-
-            highScores.forEach((s, index) => {
-                const li = document.createElement('li');
-                const levelName = s.levelId === 'hotel_lobby' ? 'Hotel' : (s.levelId === 'the_park' ? 'Park' : (s.levelId === 'desert_oasis' ? 'Casablanca' : 'Factory'));
-                li.innerHTML = `
-                    <span>${index + 1}. ${s.name}</span>
-                    <span>Score: ${s.score} | Time: ${s.survivalTime}s | Lvl: ${s.level} (${levelName})</span>
-                `;
-                targetList.appendChild(li);
-                console.log(`[Display High Scores for ${targetElementId}] Displaying score: ${s.name}, ${s.score}`);
-            });
+    // Displays the high scores on the main menu and game over screen.
+    function displayHighScores(listId) {
+        const highScores = getHighScoresLocally();
+        const listElement = document.getElementById(listId);
+        listElement.innerHTML = '';
+        if (highScores.length === 0) {
+            listElement.innerHTML = '<li>No scores yet. Be the first to survive!</li>';
+            return;
         }
+        highScores.forEach(score => {
+            const minutes = Math.floor(score.survivalTime / 60);
+            const seconds = Math.floor(score.survivalTime % 60).toString().padStart(2, '0');
+            const formattedTime = `${minutes}:${seconds}`;
+
+            const li = document.createElement('li');
+            li.innerHTML = `<span>${score.name}</span> Score: ${score.score} | Time: ${formattedTime} | Level: ${score.level}`;
+            listElement.appendChild(li);
+        });
+    }
 
         function togglePause() {
             isPaused = !isPaused;
