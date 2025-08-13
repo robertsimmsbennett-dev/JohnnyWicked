@@ -167,13 +167,13 @@
             box-sizing: border-box;
         }
         
-        #power-selection, #level-options, #character-options, #resolution-options {
-            display: flex;
-            gap: 20px; /* Scaled by responsive CSS */
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-top: 20px; /* Scaled by responsive CSS */
-        }
+#power-selection, #level-options, #character-options, #resolution-options {
+    display: flex;
+    gap: 30px; /* This is the change */
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 20px; /* Scaled by responsive CSS */
+}
 
         .power-card, .character-card, .level-card, .resolution-card {
             background-color: rgba(255, 255, 255, 0.05);
@@ -204,10 +204,10 @@
             justify-content: space-between;
         }
         
-        .power-card p, .character-card p, .level-card p, .resolution-card p {
-            font-size: 0.8em; /* Scaled by responsive CSS */
-            margin-bottom: 0;
-        }
+.power-card p, .character-card p, .level-card p, .resolution-card p {
+    font-size: 0.7em; /* This is the change */
+    margin-bottom: 0;
+}
 
         .menu button, .control-button, #level-select-menu button, #character-select-menu button, #resolution-select-menu button, #accessibility-menu button {
             background: linear-gradient(45deg, #ff0000, #990000);
@@ -231,7 +231,7 @@
 
         #pauseButton, #menuButton, #muteMusicButton, #resumeFromMenuButton, #backToMainMenuButtonFromGame { 
             padding: 8px 15px; /* Scaled by responsive CSS */
-            font-size: 1em; /* Scaled by responsive CSS */
+            font-size: 0.9em; /* Scaled by responsive CSS */
             margin-top: 0;
             background: linear-gradient(45deg, #007bff, #0056b3);
             box-shadow: 0 3px 10px rgba(0, 123, 255, 0.4);
@@ -335,7 +335,7 @@
             width: 80%;
             max-width: 250px; /* Scaled by responsive CSS */
             font-family: 'Chakra Petch', monospace;
-            font-size: 1em; /* Scaled by responsive CSS */
+            font-size: 0.8em; /* Scaled by responsive CSS */
         }
 
         #high-score-modal button {
@@ -343,7 +343,7 @@
             color: #000;
             border: none;
             padding: 10px 20px; /* Scaled by responsive CSS */
-            font-size: 1em; /* Scaled by responsive CSS */
+            font-size: 0.8em; /* Scaled by responsive CSS */
             font-family: 'Chakra Petch', monospace;
             border-radius: 5px;
             cursor: pointer;
@@ -367,7 +367,7 @@
             border-radius: 5px;
             padding: 10px; /* Scaled by responsive CSS */
             background-color: rgba(0, 0, 0, 0.5);
-            font-size: 0.9em; /* Scaled by responsive CSS */
+            font-size: 0.6em; /* Scaled by responsive CSS */
         }
 
         #high-scores-list li, #start-menu-high-scores-list li {
@@ -419,7 +419,7 @@
         }
 
         .level-card p {
-            font-size: 1em; /* Scaled by responsive CSS */
+            font-size: 0.8em; /* Scaled by responsive CSS */
             margin-bottom: 5px;
         }
 
@@ -450,54 +450,6 @@
             display: block;
         }
     
-        /* Mobile controls for touch input */
-        #mobileControls {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: space-around;
-            padding: 10px 0;
-            z-index: 12; /* Above menus but below ultimate button for now */
-            background-color: rgba(0, 0, 0, 0.5);
-            display: none; /* Hidden by default, shown by JS on small screens */
-            pointer-events: none; /* Initially non-interactive until activated */
-        }
-
-        .mobile-joystick-container {
-            position: absolute;
-            bottom: 30px; /* Scaled by responsive CSS */
-            width: 150px; /* Scaled by responsive CSS */
-            height: 150px; /* Scaled by responsive CSS */
-            border-radius: 50%;
-            background-color: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            pointer-events: all; /* Make container interactive */
-            z-index: 12; /* Above game elements */
-        }
-
-        #movementJoystick {
-            left: 20px; /* Scaled by responsive CSS */
-        }
-
-        #attackJoystick {
-            right: 20px; /* Scaled by responsive CSS */
-        }
-
-        .joystick-handle {
-            width: 60px; /* Scaled by responsive CSS */
-            height: 60px; /* Scaled by responsive CSS */
-            border-radius: 50%;
-            background-color: rgba(255, 255, 255, 0.5);
-            border: 2px solid rgba(255, 255, 255, 0.7);
-            cursor: grab;
-            position: absolute; /* Allows movement within container */
-            touch-action: none; /* Prevents default touch behavior */
-        }
 
         /* Responsive font sizes using vw units */
         @media (max-width: 900px) {
@@ -546,22 +498,7 @@
             #mobileControls {
                 display: flex; /* Show for small screens */
                 pointer-events: all;
-            }
-            .mobile-joystick-container {
-                bottom: clamp(10px, 5vw, 30px);
-                width: clamp(100px, 25vw, 150px);
-                height: clamp(100px, 25vw, 150px);
-            }
-            #movementJoystick {
-                left: clamp(10px, 5vw, 20px);
-            }
-            #attackJoystick {
-                right: clamp(10px, 5vw, 20px);
-            }
-            .joystick-handle {
-                width: clamp(40px, 10vw, 60px);
-                height: clamp(40px, 10vw, 60px);
-            }
+
             #top-left-controls, #bottom-left-controls {
                 top: clamp(5px, 1.5vw, 10px);
                 left: clamp(5px, 1.5vw, 10px);
@@ -582,16 +519,7 @@
             #gameContainer {
                 max-width: 98vw;
                 max-height: 98vh;
-            }
-            .mobile-joystick-container {
-                bottom: 10px;
-                width: 120px;
-                height: 120px;
-            }
-            .joystick-handle {
-                width: 50px;
-                height: 50px;
-            }
+            
         }
 </style>
 </head>
@@ -671,7 +599,7 @@
 <div class="character-card" data-character="dixie">
 <h3>Dixie</h3>
 <p>Dog whisperer, commands loyal companions.</p>
-<p>Starting Weapon: Twin Uzis + 1 Dog Ally</p>
+<p>Starting Weapon: Twin pistols + 1 canine companion</p>
 </div>
 </div>
 <button id="backToStartMenuFromCharSelect">Back</button>
@@ -2618,7 +2546,7 @@
                             vy: Math.sin(projectileAngle) * player.stats.projectileSpeed * 0.5 * (ultimateActive ? projectileSpeedModifier : 1), 
                             size: 5, 
                             damage: ultimateActive ? player.stats.burstChargeDamage * 3 : player.stats.burstChargeDamage,
-                            color: ultimateActive ? '#ff9933' : '#00ffff', 
+                            color: ultimateActive ? '#ff9933' : '#FFFFFF', 
                             pierce: ultimateActive ? player.stats.pierce + 1 : player.stats.pierce,
                             hits: 0
                         });
@@ -4674,7 +4602,7 @@
 
             // Show/hide mobile controls based on screen width
             if (window.innerWidth < 768) { // Example breakpoint for mobile
-                mobileControls.style.display = 'flex';
+                mobileControls.style.display = 'none';
             } else {
                 mobileControls.style.display = 'none';
             }
@@ -5052,11 +4980,11 @@
                 player.maxHealth = 120;
                 player.color = '#FF69B4'; 
                 player.baseColor = '#FF69B4'; 
-                allyDogs = [];
-                addAllyDog();
-                player.stats.dualUziActive = true; 
-                player.stats.dualUziFireRate = 10;
-                player.stats.dualUziDamage = 4;
+                allyDogs = []; // Dixie no longer starts with an ally dog
+                // No addAllyDog() call here, as she no longer starts with a dog.
+                player.stats.dualUziActive = true; // Renamed to represent Twin Pistols
+                player.stats.dualUziFireRate = 8; // Adjust fire rate for Twin Pistols
+                player.stats.dualUziDamage = 8; // Adjust damage for Twin Pistols
             }
 
             randomChestSpawnTimer = 0; 
@@ -5101,8 +5029,3 @@
 </script>
 </body>
 </html>
-```css
-/*
- * Your CSS styles go here.
- * You can also use Tailwind CSS classes directly in your HTML.
- */
