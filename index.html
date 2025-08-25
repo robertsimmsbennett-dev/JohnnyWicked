@@ -562,9 +562,11 @@
 <div class="menu" id="start-menu">
 <h1>JOHNNY WICKED SURVIVORS</h1>
 <p>Click or tap anywhere to move. Your character will fire automatically.</p>
+<p>New: Enemies can now shoot back! Be careful of the gunmen.</p>
 <button id="startButton">Start Game</button>
 <button id="levelSelectButton">Level Select</button>
-<button id="resolutionButton">Resolution</button> <!-- New Resolution Button -->
+<button id="resolutionButton">Screen type</button> <!-- New Resolution Button -->
+<button id="accessibilityButton" style="display: none;">Accessibility</button>
 <h3>Global High Scores</h3>
 <ul id="start-menu-high-scores-list">
 </ul>
@@ -964,8 +966,8 @@
         // Resolution settings
         const RESOLUTIONS = {
             'mobile': { id: 'mobile', name: '9:21 (Mobile)', aspectRatio: 9 / 21, defaultWidth: 500, defaultHeight: 933 }, 
-            'folding': { id: 'folding', name: '5:4 (Folding)', aspectRatio: 5 / 4, defaultWidth: 800, defaultHeight: 640 },
-            'monitor': { id: 'monitor', name: '16:9 (Monitor)', aspectRatio: 16 / 9, defaultWidth: 900, defaultHeight: 700 }
+            'Folding phone': { id: 'Folding phone', name: '5:4 (Folding phone)', aspectRatio: 5 / 4, defaultWidth: 800, defaultHeight: 640 },
+            'Tablet': { id: 'Tablet', name: '16:9 (Tablet)', aspectRatio: 16 / 9, defaultWidth: 900, defaultHeight: 700 }
         };
         let currentResolution = RESOLUTIONS.mobile; // Default to 9:21 for mobile
 
